@@ -491,3 +491,7 @@ frontend/dist/
 # local scratch
 .scratch/
 
+
+# deployment secrets and local backups
+.env
+backups/

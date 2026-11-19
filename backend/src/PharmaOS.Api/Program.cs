@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PharmaOS.Api;
@@ -99,15 +100,27 @@ builder.Services.AddRateLimiter(o =>
 var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
+// Behind a reverse proxy (nginx in docker-compose): trust X-Forwarded-For/Proto so rate limits and audit see the real client.
+// Only enable when the API port is reachable from the proxy alone.
+if (builder.Configuration.GetValue<bool>("ForwardedHeaders:Enabled"))
+    builder.Services.Configure<ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        o.KnownNetworks.Clear();
+        o.KnownProxies.Clear();
+    });
+
 var app = builder.Build();
+if (app.Configuration.GetValue<bool>("ForwardedHeaders:Enabled")) app.UseForwardedHeaders();
 
 // Refuse to run outside Development with the sample secrets that live in the repository.
 if (!app.Environment.IsDevelopment())
 {
-    if (jwt.Key.Contains("dev-only", StringComparison.OrdinalIgnoreCase) || jwt.Key.Contains("change-me", StringComparison.OrdinalIgnoreCase))
-        throw new InvalidOperationException("Jwt:Key is the development sample key. Set a long random key from a secret store before running in " + app.Environment.EnvironmentName + ".");
-    if (builder.Configuration["Platform:BootstrapPassword"] is { } bp && bp.Contains("Dev-Only", StringComparison.OrdinalIgnoreCase))
-        throw new InvalidOperationException("Platform:BootstrapPassword is the development sample password. Set a strong one from a secret store.");
+    static bool Sample(string? v, params string[] marks) => v is not null && marks.Any(m => v.Contains(m, StringComparison.OrdinalIgnoreCase));
+    if (Sample(jwt.Key, "dev-only", "change-me", "paste-") || jwt.Key.Length < 48)
+        throw new InvalidOperationException("Jwt:Key is a sample/placeholder or shorter than 48 characters. Set a long random key from a secret store before running in " + app.Environment.EnvironmentName + ".");
+    if (Sample(builder.Configuration["Platform:BootstrapPassword"], "dev-only", "change-me"))
+        throw new InvalidOperationException("Platform:BootstrapPassword is a sample/placeholder value. Set a strong one from a secret store.");
 }
 
 // Business errors → RFC 7807 problem+json with a stable machine-readable "code".
@@ -127,9 +140,10 @@ app.UseExceptionHandler(e => e.Run(async http =>
         extensions: new Dictionary<string, object?> { ["code"] = code, ["traceId"] = http.TraceIdentifier }).ExecuteAsync(http);
 }));
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment()) app.MapOpenApi();
+// Development always migrates; elsewhere only when Database:MigrateOnStartup=true (take a backup before upgrading).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
-    app.MapOpenApi();
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<PharmaDbContext>().Database.MigrateAsync();
 }

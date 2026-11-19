@@ -24,8 +24,10 @@ public sealed class ApiFixture : IAsyncLifetime
     public Task InitializeAsync()
     {
         var server = Environment.GetEnvironmentVariable("PHARMA_TEST_SQL") ?? "localhost";
+        // Windows dev: integrated login. CI/Linux: set PHARMA_TEST_SQL_AUTH="User Id=sa;Password=...".
+        var auth = Environment.GetEnvironmentVariable("PHARMA_TEST_SQL_AUTH") ?? "Trusted_Connection=True";
         Environment.SetEnvironmentVariable("ConnectionStrings__Pharma",
-            $"Server={server};Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True");
+            $"Server={server};Database={_dbName};{auth};TrustServerCertificate=True");
         Environment.SetEnvironmentVariable("RateLimit__AuthPerMinute", "100000");
         Factory = new WebApplicationFactory<Program>(); // Development env → applies migrations on startup
         Factory.CreateClient().Dispose();

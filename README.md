@@ -8,6 +8,10 @@ Stack: **.NET 9 modular monolith (EF Core, SQL Server)** + **React 19 (Vite, Typ
 Delivery plan and status: [docs/ROADMAP.md](docs/ROADMAP.md) · offline design: [docs/OFFLINE.md](docs/OFFLINE.md) · operations & security: [docs/OPERATIONS.md](docs/OPERATIONS.md) ·
 non-retail tracks: [docs/SEPARATE_TRACKS.md](docs/SEPARATE_TRACKS.md)
 
+## Deploy
+
+One server with Docker: `cp .env.example .env`, fill it, `docker compose up -d --build`. Full guide (HTTPS, backups, upgrades, CI): [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Run locally
 
 Prerequisites: .NET 9 SDK, Node 20+, SQL Server (local default instance, Windows auth).
