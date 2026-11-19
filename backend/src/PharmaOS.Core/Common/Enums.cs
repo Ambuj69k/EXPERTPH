@@ -10,6 +10,20 @@ public enum UserRole
     Accountant = 5,
     /// <summary>Sees only deliveries assigned to them; marks delivered (with handover code) or failed.</summary>
     DeliveryAgent = 6,
+    /// <summary>Distributor field sales: takes orders and collections for assigned retailers.</summary>
+    Salesman = 7,
+    /// <summary>Medical representative: own doctors, tour plan, daily call reports, sample bag.</summary>
+    MedicalRep = 8,
+    /// <summary>Area manager: approves tour plans and daily reports of MRs in the territories they supervise.</summary>
+    AreaManager = 9,
+    /// <summary>Hospital ward/department staff: raise indents and returns for their own department only.</summary>
+    WardStaff = 10,
+    /// <summary>Manufacturing: plans batches, issues materials, records output.</summary>
+    Production = 11,
+    /// <summary>QC lab: samples and test results.</summary>
+    QcAnalyst = 12,
+    /// <summary>QA: approves recipes/specs and releases or rejects batches.</summary>
+    QaManager = 13,
 }
 
 /// <summary>
@@ -99,6 +113,13 @@ public enum MovementType
     CountLoss = 12,
     TransferOut = 13,
     TransferIn = 14,
+    TradeSale = 15,
+    TradeSaleCancel = 16,
+    TradeReturnIn = 17,
+    WardIssue = 18,
+    WardReturnIn = 19,
+    ProductionConsume = 20,
+    ProductionOutput = 21,
 }
 
 /// <summary>Draft → Dispatched (left source, in transit) → Received (at destination; shortages recorded) | Cancelled (draft only).</summary>

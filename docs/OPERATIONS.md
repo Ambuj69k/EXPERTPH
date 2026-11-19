@@ -26,6 +26,8 @@ Targets below are **proposals to validate**, not proven capabilities.
 Never in the repo: `ConnectionStrings__Pharma`, `Jwt__Key` (≥ 32 random chars), `Platform__Bootstrap*` (first run, then remove),
 any provider API keys. Rotating `Jwt__Key` signs everyone out (acceptable).
 
+- Outside Development the API refuses to start if `Jwt:Key` or `Platform:BootstrapPassword` is still the sample value from `appsettings.Development.json` (those samples are public in the repository).
+
 ## Access controls already enforced
 Tenant isolation (query filters + write guard), role policies, branch confinement for staff, immediate effect of user
 deactivation / branch reassignment / tenant suspension, account lockout (5 failures → 15 min), optional TOTP two-step

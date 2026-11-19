@@ -357,6 +357,7 @@ public static class Endpoints
 
         // ---- Reports ----
         var reports = secured.MapGroup("/reports").RequireAuthorization(Policies.Reports);
+        reports.MapGet("/controlled-drugs", (DateOnly from, DateOnly to, ControlledDrugService svc, CancellationToken ct) => svc.RegisterAsync(from, to, ct));
         reports.MapGet("/near-expiry", (int? days, StockService svc, CancellationToken ct) => svc.NearExpiryAsync(days ?? 90, ct));
         reports.MapGet("/daily-sales", (DateOnly date, StockService svc, CancellationToken ct) => svc.DailySalesAsync(date, ct));
         reports.MapGet("/return-recovery", (PurchaseReturnService svc, CancellationToken ct) => svc.RecoveryAsync(ct));

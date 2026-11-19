@@ -52,8 +52,12 @@ Production configuration (never commit): `ConnectionStrings__Pharma`, `Jwt__Key`
 | Offline | Cached app + POS catalogue, offline bill queue with provisional numbers, safe sync, visible sync failures |
 | Security | Account lockout, TOTP two-step sign-in (staff and provider), self-service password change, owner reset of staff passwords, API security headers |
 | Online orders (gated) | Delivery charge with free-delivery threshold (GST rate configurable — CA to confirm), OTC-only public catalogue, Rx via prescription upload + pharmacist review, customer approval of changes, billing at packing, COD with handover code, delivery-agent role with limited data |
+| Distributor (gated) | Retailer accounts with GSTIN/licence expiry/credit limits, trade rates (default + per-retailer PTR), quantity schemes and trade discounts, salesman order booking (phone-friendly), FEFO trade invoices with free goods and IGST vs CGST+SGST, credit-limit/overdue block with owner override + reason, credit notes (saleable restock / write-off), collections with FIFO allocation, aging and salesman report, pick list & vehicle dispatch with delivery confirmation, posted to the books (trade receivables) |
+| Field force / MR (gated) | Territories (one MR, one area manager), doctor master with class A/B/C, consent date and on-request anonymisation, monthly tour plan with manager approval, daily call report (phone-friendly, 7-day window, calls saved on the phone when offline and sent later, optional per-call location), sample bag per MR (issue / give / return, no negative), report approval, coverage vs visit norms and plan adherence, expense claims with approval, monthly targets & scorecard |
+| Hospital pharmacy (gated) | Departments/wards as cost centres, ward staff confined to their department, formulary with high-alert flags, ward indents (urgent first, HIS encounter ref without patient names), FEFO issues with a mandatory second pharmacist check for high-alert and narcotic/Schedule X items, partial issues and close-short, unused/expired/damaged returns, department consumption and indent turnaround, cost posted to the books; narcotic & Schedule X running register per batch (also for retail) |
+| Manufacturing & QA (gated, pilot) | Versioned recipes and QC specs approved by QA with an e-signature, production batches that consume material lots FEFO (only QC-passed lots where a spec exists), output booked as quarantined stock, signed and immutable QC results judged against limits, QA release/reject with e-signature and tester ≠ releaser, batch genealogy both ways, WIP accounting, deviations & CAPA (open Major/Critical blocks release, QA closes with e-signature) |
 
-Roles: Owner · Pharmacist · Cashier · PurchaseClerk · Accountant · DeliveryAgent (server-enforced; the UI mirrors it).
+Roles: Owner · Pharmacist · Cashier · PurchaseClerk · Accountant · DeliveryAgent · Salesman · MedicalRep · AreaManager · WardStaff · Production · QcAnalyst · QaManager (server-enforced; the UI mirrors it).
 
 ## Must be verified by experts before real use
 
@@ -68,10 +72,14 @@ These are engineering defaults, **not** verified compliance:
   unsettled at last check. The `online` module is off for every plan until reviewed.
 - **Data protection (DPDP):** consent wording, retention periods, breach process, processor agreements, data deletion.
 - Licence and GSTIN fields are stored as records only; nothing is verified with authorities.
+- **Distributor:** B2B invoice format, scheme/free-goods tax treatment, credit-note GST, e-way bill and e-invoicing thresholds must be checked by a CA before a distributor uses it; e-way bill / IRN generation is not built.
+- **Field force:** doctor data is personal data (DPDP) — legal basis, consent wording and retention need review; employee location capture needs an employment-law/policy review (it is opt-in per call here); sample and gift rules (e.g. the pharma marketing code) need compliance review; visit norms (A 4, B 2, C 1) are placeholders.
+- **Hospital:** high-alert list and dual-check rules must come from the hospital's pharmacy & therapeutics committee; the narcotic register is built from the stock ledger but its statutory format must be confirmed with the drug controller; HIS integration (HL7/FHIR) is not built — patient-level dispensing, billing and medication administration stay in the HIS.
+- **Manufacturing:** a pilot slice only — **not validated for GMP decisions**. Computer system validation (IQ/OQ/PQ), document control, training records, change control, equipment and stability are not built; a QA/GMP consultant and validation partner are required before real use.
 
 ## Known limitations
 
-- Browser tests cover onboarding → purchase → billing, offline billing + sync, all main screens, cashier permissions and the
+- Browser tests cover onboarding → purchase → billing, offline billing + sync, all main screens, cashier permissions, the distributor order → invoice → collection flow, the MR call report (incl. offline save) → approval flow, the hospital indent → issue → second-check flow, the manufacturing QC → QA e-signature release flow and the
   provider console; less-used screen actions are still only type-checked.
 - No payment gateway, SMS/WhatsApp API, AI provider, or e-invoice/GSP integration is connected (none approved).
 - The Tally XML export has not been imported into a live Tally yet; forgot-password by email/SMS needs a

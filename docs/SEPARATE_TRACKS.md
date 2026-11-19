@@ -1,5 +1,7 @@
 # Separate product tracks — scoping blueprints
 
+> **Status (Nov 2026):** MVP slices of all four tracks are now built behind their own plan modules (`distributor`, `sfa`, `hospital`, `manufacturing`) — see ROADMAP.md. The go/no-go evidence and expert reviews below still apply before selling any of them.
+
 These were deliberately **not** built into the retail product. Each has a different buyer, daily users, workflows and
 regulatory surface; bundling them would recreate the "oversized initial product" the blueprint warns against.
 Start a track only when the evidence in its "Go when" line exists.

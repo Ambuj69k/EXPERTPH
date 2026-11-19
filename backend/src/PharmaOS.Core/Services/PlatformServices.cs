@@ -18,7 +18,15 @@ public static class Plans
     public const string Crm = "crm", Purchasing = "purchasing", Accounting = "accounting", MultiStore = "multistore";
     /// <summary>Online ordering & delivery: in NO plan by default — enabled per customer (extra module) only after a compliance review.</summary>
     public const string Online = "online";
-    public static readonly string[] AllModules = [Crm, Purchasing, Accounting, MultiStore, Online];
+    /// <summary>B2B distribution: retailers, trade rates, schemes, orders, trade invoices, collections.</summary>
+    public const string Distributor = "distributor";
+    /// <summary>Field force (MR) CRM: doctors, tour plans, daily call reports, samples.</summary>
+    public const string Sfa = "sfa";
+    /// <summary>Hospital pharmacy: departments, formulary, ward indents/issues/returns, consumption.</summary>
+    public const string Hospital = "hospital";
+    /// <summary>Manufacturing & QA (not GMP-validated): recipes, production batches, QC, QA release.</summary>
+    public const string Manufacturing = "manufacturing";
+    public static readonly string[] AllModules = [Crm, Purchasing, Accounting, MultiStore, Online, Distributor, Sfa, Hospital, Manufacturing];
     public const string TrialPlan = "chain";
     public const int TrialDays = 30;
 
@@ -26,7 +34,11 @@ public static class Plans
     [
         new("single", "Single store", "Pricing hypothesis — validate with pilots", 999m, 1, 5, [Crm, Purchasing]),
         new("chain", "Small chain", "Pricing hypothesis — validate with pilots", 2499m, 10, 30, [Crm, Purchasing, Accounting, MultiStore]),
-        new("enterprise", "Enterprise", "Quoted per customer", null, null, null, [Crm, Purchasing, Accounting, MultiStore]),
+        new("distributor", "Distributor", "Pricing hypothesis — validate with a distributor pilot", 4999m, 3, 25, [Distributor, Purchasing, Accounting, MultiStore]),
+        new("fieldforce", "Field force (MR)", "Pricing hypothesis — validate with a pharma marketing pilot", 2999m, 3, 60, [Sfa]),
+        new("hospital", "Hospital pharmacy", "Pricing hypothesis — validate with a hospital pilot", 7999m, 5, 80, [Hospital, Purchasing, Accounting, MultiStore]),
+        new("manufacturing", "Manufacturer (pilot)", "Pilot only — not validated for GMP use", null, 2, 40, [Manufacturing, Purchasing, Accounting]),
+        new("enterprise", "Enterprise", "Quoted per customer", null, null, null, [Crm, Purchasing, Accounting, MultiStore, Distributor, Sfa, Hospital, Manufacturing]),
     ];
 
     public static PlanDef Get(string code) => Catalog.FirstOrDefault(p => p.Code == code) ?? Catalog[0];
@@ -196,6 +208,49 @@ public class ExportService(PharmaDbContext db, AuditService audit)
             await Add("ledger_accounts.csv", db.LedgerAccounts.AsNoTracking());
             await Add("journal_entries.csv", db.JournalEntries.AsNoTracking());
             await Add("journal_lines.csv", db.JournalLines.AsNoTracking());
+            await Add("branch_prices.csv", db.BranchProductPrices.AsNoTracking());
+            await Add("online_orders.csv", db.OnlineOrders.AsNoTracking());
+            await Add("online_order_lines.csv", db.OnlineOrderLines.AsNoTracking());
+            await Add("retailers.csv", db.Retailers.AsNoTracking());
+            await Add("trade_rates.csv", db.TradeRates.AsNoTracking());
+            await Add("trade_schemes.csv", db.TradeSchemes.AsNoTracking().Select(x => new { x.Id, x.ProductId, x.Name, x.BuyQtyPacks, x.FreeQtyPacks, x.DiscountPercent, x.ValidFrom, x.ValidTo, x.IsActive }));
+            await Add("sales_orders.csv", db.SalesOrders.AsNoTracking().Select(x => new { x.Id, x.BranchId, x.RetailerId, x.OrderNo, x.Status, x.Notes, x.TakenByUserId, x.CreatedAt, x.TradeInvoiceId }));
+            await Add("sales_order_lines.csv", db.SalesOrderLines.AsNoTracking().Select(x => new { x.Id, x.SalesOrderId, x.ProductId, x.QtyPacks }));
+            await Add("trade_invoices.csv", db.TradeInvoices.AsNoTracking());
+            await Add("trade_invoice_lines.csv", db.TradeInvoiceLines.AsNoTracking().Select(x => new { x.Id, x.TradeInvoiceId, x.LineNo, x.ProductId, x.BatchId, x.QtyPacks, x.FreeQtyPacks, x.RatePerPack, x.DiscountPercent, x.GrossAmount, x.DiscountAmount, x.TaxableAmount, x.GstRate, x.TaxAmount, x.LineTotal, x.CostPerUnit, x.ReturnedPacks, x.SchemeId }));
+            await Add("trade_credit_notes.csv", db.TradeCreditNotes.AsNoTracking());
+            await Add("trade_credit_note_lines.csv", db.TradeCreditNoteLines.AsNoTracking());
+            await Add("trade_receipts.csv", db.TradeReceipts.AsNoTracking());
+            await Add("trade_receipt_allocations.csv", db.TradeReceiptAllocations.AsNoTracking());
+            await Add("territories.csv", db.Territories.AsNoTracking());
+            await Add("doctors.csv", db.Doctors.AsNoTracking().Select(x => new { x.Id, x.Name, x.Speciality, x.Qualification, x.Clinic, x.Area, x.Phone, x.TerritoryId, x.Class, x.ConsentRecordedOn, x.IsActive, x.AnonymisedAt }));
+            await Add("tour_plans.csv", db.TourPlans.AsNoTracking());
+            await Add("tour_plan_entries.csv", db.TourPlanEntries.AsNoTracking());
+            await Add("daily_reports.csv", db.DailyReports.AsNoTracking());
+            await Add("doctor_calls.csv", db.DoctorCalls.AsNoTracking().Select(x => new { x.Id, x.DailyReportId, x.DoctorId, x.CallAt, x.ProductsDetailed, x.Feedback, x.JointWorkUserId, x.Latitude, x.Longitude, x.WasPlanned }));
+            await Add("sample_movements.csv", db.SampleMovements.AsNoTracking().Select(x => new { x.Id, x.RepUserId, x.ProductId, x.Kind, x.Qty, x.DoctorId, x.DoctorCallId, x.Note, x.CreatedByUserId, x.CreatedAt }));
+            await Add("departments.csv", db.Departments.AsNoTracking());
+            await Add("formulary.csv", db.FormularyItems.AsNoTracking().Select(x => new { x.Id, x.ProductId, x.IsHighAlert, x.Notes }));
+            await Add("ward_indents.csv", db.WardIndents.AsNoTracking());
+            await Add("ward_indent_lines.csv", db.WardIndentLines.AsNoTracking().Select(x => new { x.Id, x.WardIndentId, x.ProductId, x.QtyUnits, x.IssuedUnits }));
+            await Add("ward_issues.csv", db.WardIssues.AsNoTracking());
+            await Add("ward_issue_lines.csv", db.WardIssueLines.AsNoTracking().Select(x => new { x.Id, x.WardIssueId, x.ProductId, x.QtyUnits, x.WardIndentLineId }));
+            await Add("ward_issue_batches.csv", db.WardIssueBatches.AsNoTracking().Select(x => new { x.Id, x.WardIssueLineId, x.BatchId, x.QtyUnits, x.CostPerUnit, x.ReturnedUnits }));
+            await Add("ward_returns.csv", db.WardReturns.AsNoTracking());
+            await Add("ward_return_lines.csv", db.WardReturnLines.AsNoTracking());
+            await Add("recipes.csv", db.Recipes.AsNoTracking());
+            await Add("recipe_lines.csv", db.RecipeLines.AsNoTracking());
+            await Add("qc_specs.csv", db.QcSpecs.AsNoTracking());
+            await Add("qc_spec_tests.csv", db.QcSpecTests.AsNoTracking());
+            await Add("production_batches.csv", db.ProductionBatches.AsNoTracking());
+            await Add("material_consumption.csv", db.MaterialConsumptions.AsNoTracking());
+            await Add("qc_samples.csv", db.QcSamples.AsNoTracking());
+            await Add("qc_results.csv", db.QcResults.AsNoTracking());
+            await Add("dispatches.csv", db.Dispatches.AsNoTracking());
+            await Add("dispatch_stops.csv", db.DispatchStops.AsNoTracking());
+            await Add("expense_claims.csv", db.ExpenseClaims.AsNoTracking());
+            await Add("sfa_targets.csv", db.SfaTargets.AsNoTracking());
+            await Add("deviations.csv", db.Deviations.AsNoTracking());
             await Add("audit_events.csv", db.AuditEvents.AsNoTracking());
             var readme = zip.CreateEntry("README.txt");
             await using var w = new StreamWriter(readme.Open(), new UTF8Encoding(false));
@@ -255,7 +310,7 @@ public record PlatformDashboard(int Tenants, int Active, int Trials, int TrialsE
     int BillsLast24h, List<PlanDef> Plans);
 
 /// <summary>SaaS provider administration. Every query here crosses tenants deliberately (IgnoreQueryFilters).</summary>
-public class PlatformService(PharmaDbContext db, IClock clock, ISecretProtector protector)
+public class PlatformService(PharmaDbContext db, IClock clock, ISecretProtector protector, IFileStore files)
 {
     private static readonly PasswordHasher<PlatformUser> Hasher = new();
 
@@ -527,9 +582,26 @@ public class PlatformService(PharmaDbContext db, IClock clock, ISecretProtector 
         var t = await db.Tenants.SingleOrDefaultAsync(x => x.Id == tenantId && x.DeletedAt == null, ct) ?? throw BusinessException.NotFound("Tenant");
         if (t.DeletionScheduledAt is null || t.DeletionScheduledAt > clock.UtcNow)
             throw BusinessException.Conflict("not_scheduled", "Deletion must be scheduled and its date reached before purging.");
+        var storedFiles = await db.OnlineOrderFiles.IgnoreQueryFilters().Where(x => x.TenantId == tenantId).Select(x => x.StoragePath).ToListAsync(ct);
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         async Task Del<T>(IQueryable<T> set) where T : TenantEntity => await set.IgnoreQueryFilters().Where(x => x.TenantId == tenantId).ExecuteDeleteAsync(ct);
         await Del(db.SupportMessages); await Del(db.SupportTickets);
+        await Del(db.DispatchStops); await Del(db.Dispatches); await Del(db.ExpenseClaims); await Del(db.SfaTargets); await Del(db.Deviations);
+        // manufacturing
+        await Del(db.QcResults); await Del(db.QcSamples); await Del(db.MaterialConsumptions); await Del(db.ProductionBatches);
+        await Del(db.QcSpecTests); await Del(db.QcSpecs); await Del(db.RecipeLines); await Del(db.Recipes);
+        // hospital
+        await Del(db.WardReturnLines); await Del(db.WardReturns); await Del(db.WardIssueBatches); await Del(db.WardIssueLines); await Del(db.WardIssues);
+        await Del(db.WardIndentLines); await Del(db.WardIndents); await Del(db.FormularyItems);
+        // field force
+        await Del(db.SampleMovements); await Del(db.DoctorCalls); await Del(db.DailyReports); await Del(db.TourPlanEntries); await Del(db.TourPlans);
+        await Del(db.Doctors); await Del(db.Territories);
+        // distribution
+        await Del(db.TradeReceiptAllocations); await Del(db.TradeReceipts); await Del(db.TradeCreditNoteLines); await Del(db.TradeCreditNotes);
+        await Del(db.TradeInvoiceLines); await Del(db.TradeInvoices); await Del(db.SalesOrderLines); await Del(db.SalesOrders);
+        await Del(db.TradeSchemes); await Del(db.TradeRates); await Del(db.Retailers);
+        // online orders and branch prices
+        await Del(db.OnlineOrderFiles); await Del(db.OnlineOrderLines); await Del(db.OnlineOrders); await Del(db.BranchProductPrices);
         await Del(db.JournalLines); await Del(db.JournalEntries);
         await Del(db.LoyaltyEntries); await Del(db.NotificationLogs); await Del(db.ConsentRecords); await Del(db.RefillReminders); await Del(db.NotificationTemplates);
         await Del(db.CustomerReceiptAllocations); await Del(db.CustomerReceipts); await Del(db.SupplierPaymentAllocations); await Del(db.SupplierPayments);
@@ -542,10 +614,23 @@ public class PlatformService(PharmaDbContext db, IClock clock, ISecretProtector 
         await Del(db.CashMovements); await Del(db.CashShifts);
         await Del(db.LedgerAccounts); await Del(db.Batches); await Del(db.Customers); await Del(db.Products); await Del(db.Suppliers);
         await Del(db.DocumentSequences); await Del(db.AuditEvents);
+        await db.Users.IgnoreQueryFilters().Where(x => x.TenantId == tenantId).ExecuteUpdateAsync(s => s.SetProperty(u => u.DepartmentId, (Guid?)null), ct);
+        await Del(db.Departments);
         await Del(db.Users); await Del(db.Branches);
+        // Safety net: a table added later but forgotten above must stop the purge, not leave data behind.
+        foreach (var et in db.Model.GetEntityTypes().Where(e => typeof(ITenantOwned).IsAssignableFrom(e.ClrType) && e.GetTableName() is not null))
+        {
+            var left = await db.Database.SqlQueryRaw<int>($"SELECT COUNT(*) AS [Value] FROM [{et.GetSchema() ?? "dbo"}].[{et.GetTableName()}] WHERE [TenantId] = {{0}}", tenantId)
+                .SingleAsync(ct);
+            if (left > 0) throw new InvalidOperationException($"Purge does not cover table {et.GetTableName()} ({left} rows left); nothing was deleted.");
+        }
         t.Name = "Deleted tenant"; t.IsActive = false; t.DeletedAt = clock.UtcNow; t.SupportAccessUntil = null;
         Audit(tenantId, by, "purged", null);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        foreach (var path in storedFiles)
+        {
+            try { files.Delete(path); } catch (IOException) { /* best effort: rows are gone; a leftover file can be removed by hand from Storage:Root */ }
+        }
     }
 }

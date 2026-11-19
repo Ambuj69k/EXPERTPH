@@ -10,6 +10,13 @@ const ROLE_HELP: Record<Role, string> = {
   PurchaseClerk: 'Purchases, suppliers and products',
   Accountant: 'Books, statements and reports; no billing or stock',
   DeliveryAgent: 'Only their assigned online-order deliveries',
+  Salesman: 'Distributor: books orders and collections for their own retailers',
+  MedicalRep: 'Field force: own doctors, tour plan, daily call reports, sample bag',
+  AreaManager: 'Field force: approves plans and reports of MRs in their territories',
+  WardStaff: 'Hospital: raises indents for their own ward; sees its issues',
+  Production: 'Manufacturing: plans batches, issues materials, records output',
+  QcAnalyst: 'QC lab: logs samples and signs test results',
+  QaManager: 'QA: approves recipes/specs, releases or rejects batches',
 };
 
 export default function UsersPage() {

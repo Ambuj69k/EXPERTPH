@@ -101,6 +101,15 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(allowedOrigi
 
 var app = builder.Build();
 
+// Refuse to run outside Development with the sample secrets that live in the repository.
+if (!app.Environment.IsDevelopment())
+{
+    if (jwt.Key.Contains("dev-only", StringComparison.OrdinalIgnoreCase) || jwt.Key.Contains("change-me", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("Jwt:Key is the development sample key. Set a long random key from a secret store before running in " + app.Environment.EnvironmentName + ".");
+    if (builder.Configuration["Platform:BootstrapPassword"] is { } bp && bp.Contains("Dev-Only", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("Platform:BootstrapPassword is the development sample password. Set a strong one from a secret store.");
+}
+
 // Business errors → RFC 7807 problem+json with a stable machine-readable "code".
 app.UseExceptionHandler(e => e.Run(async http =>
 {
@@ -143,6 +152,10 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapPharmaEndpoints();
 app.MapPlatformEndpoints();
 app.MapOnlineEndpoints();
+app.MapDistributorEndpoints();
+app.MapSfaEndpoints();
+app.MapHospitalEndpoints();
+app.MapManufacturingEndpoints();
 
 app.Run();
 

@@ -13,6 +13,8 @@ public interface IFileStore
 {
     Task<string> SaveAsync(Stream content, string extension, CancellationToken ct);
     Stream Open(string storagePath);
+    /// <summary>Removes a stored file; missing files are ignored.</summary>
+    void Delete(string storagePath);
 }
 
 /// <summary>Local disk storage (configure Storage:Root on a data drive). Files get random names; nothing is served statically.</summary>
@@ -33,6 +35,13 @@ public sealed class LocalFileStore(string root) : IFileStore
         var full = Path.GetFullPath(Path.Combine(root, storagePath));
         if (!full.StartsWith(Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase)) throw new UnauthorizedAccessException();
         return File.OpenRead(full);
+    }
+
+    public void Delete(string storagePath)
+    {
+        var full = Path.GetFullPath(Path.Combine(root, storagePath));
+        if (!full.StartsWith(Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase)) throw new UnauthorizedAccessException();
+        if (File.Exists(full)) File.Delete(full);
     }
 }
 
@@ -451,7 +460,7 @@ public class OnlineOrderService(PharmaDbContext db, ITenantContext ctx, IClock c
 
     public async Task<List<UserDto>> AgentsAsync(CancellationToken ct = default) =>
         await db.Users.Where(u => u.Role == UserRole.DeliveryAgent && u.IsActive && u.DefaultBranchId == ctx.BranchId).OrderBy(u => u.DisplayName)
-            .Select(u => new UserDto(u.Id, u.Email, u.DisplayName, u.Role, u.DefaultBranchId, u.IsActive)).ToListAsync(ct);
+            .Select(u => new UserDto(u.Id, u.Email, u.DisplayName, u.Role, u.DefaultBranchId, u.IsActive, u.DepartmentId)).ToListAsync(ct);
 
     public async Task<List<OnlineOrderDto>> MyDeliveriesAsync(CancellationToken ct = default)
     {

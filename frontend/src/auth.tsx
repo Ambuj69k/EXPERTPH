@@ -45,4 +45,10 @@ export const RoleSets = {
   accounting: ['Owner', 'Accountant'] as Role[],
   admin: ['Owner'] as Role[],
   delivery: ['Owner', 'Pharmacist', 'DeliveryAgent'] as Role[],
+  trade: ['Owner', 'Pharmacist', 'Salesman', 'Accountant'] as Role[],
+  tradeAdmin: ['Owner', 'Pharmacist'] as Role[],
+  sfa: ['Owner', 'AreaManager', 'MedicalRep'] as Role[],
+  sfaManage: ['Owner', 'AreaManager'] as Role[],
+  hospital: ['Owner', 'Pharmacist', 'WardStaff'] as Role[],
+  mfg: ['Owner', 'Production', 'QcAnalyst', 'QaManager'] as Role[],
 };

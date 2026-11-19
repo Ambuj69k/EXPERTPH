@@ -76,6 +76,13 @@ public sealed class TenantClient(HttpClient http, ApiFixture fixture)
         return await Read(res);
     }
 
+    public async Task<JsonElement> Delete(string url)
+    {
+        var res = await http.DeleteAsync(url);
+        await EnsureOk(res);
+        return await Read(res);
+    }
+
     public async Task<JsonElement> Get(string url)
     {
         var res = await http.GetAsync(url);
@@ -98,10 +105,10 @@ public sealed class TenantClient(HttpClient http, ApiFixture fixture)
         return (res.StatusCode, code);
     }
 
-    public async Task<TenantClient> AddUserAsync(string role)
+    public async Task<TenantClient> AddUserAsync(string role, string? displayName = null)
     {
         var email = $"{role.ToLower()}-{Guid.NewGuid():N}@test.local";
-        await Post("/api/v1/users", new { email, displayName = role, password = "Password@123", role });
+        await Post("/api/v1/users", new { email, displayName = displayName ?? role, password = "Password@123", role });
         var c = fixture.Factory.CreateClient();
         var res = await c.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "Password@123" }, ApiFixture.Json);
         await EnsureOk(res);

@@ -63,6 +63,8 @@ public class AppUser : TenantEntity
     public string PasswordHash { get; set; } = "";
     public UserRole Role { get; set; }
     public Guid DefaultBranchId { get; set; }
+    /// <summary>Hospital ward staff: the department they raise indents for.</summary>
+    public Guid? DepartmentId { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     /// <summary>Encrypted TOTP seed (ASP.NET Data Protection). Set during setup; MFA is active only once MfaEnabled is true.</summary>

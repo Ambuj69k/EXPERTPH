@@ -25,6 +25,11 @@ public static class ServiceRegistration
         services.AddScoped<SalesService>();
         services.AddScoped<StockService>();
         services.AddScoped<PriceService>();
+        services.AddScoped<DistributorService>();
+        services.AddScoped<SfaService>();
+        services.AddScoped<HospitalService>();
+        services.AddScoped<ManufacturingService>();
+        services.AddScoped<ControlledDrugService>();
         services.AddScoped<PurchaseReturnService>();
         services.AddScoped<LedgerService>();
         services.AddScoped<ShiftService>();

@@ -144,3 +144,15 @@ button.small { padding: 3px 8px; font-size: 12px; }
   .grid.c3, .grid.c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .main { padding: 14px 16px; }
 }
+
+/* distributor */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fff; display: grid; gap: 4px; }
+.card.clickable { cursor: pointer; }
+.card.clickable:hover { border-color: var(--brand); }
+td.danger, div.danger, b.danger, .small.danger { color: var(--danger); }
+@media (max-width: 600px) {
+  .grid.c2 { grid-template-columns: 1fr; }
+  .modal { width: 100%; padding: 12px; }
+  input.qty { width: 60px; }
+}

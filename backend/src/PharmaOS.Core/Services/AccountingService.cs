@@ -60,9 +60,11 @@ public class AccountingService(PharmaDbContext db, ITenantContext ctx, IClock cl
         ("BANK", "1010", "Bank Account", AccountType.Asset),
         ("CLEARING", "1020", "Card / UPI Clearing", AccountType.Asset),
         ("AR", "1100", "Customer Receivables", AccountType.Asset),
+        ("TRADE_AR", "1105", "Trade Receivables (retailers)", AccountType.Asset),
         ("CLAIMS", "1150", "Supplier Claims Receivable", AccountType.Asset),
         ("INVENTORY", "1200", "Inventory", AccountType.Asset),
         ("TRANSIT", "1210", "Stock in Transit (inter-branch)", AccountType.Asset),
+        ("WIP", "1220", "Work in Progress (production)", AccountType.Asset),
         ("GST_IN", "1300", "GST Input Credit", AccountType.Asset),
         ("AP", "2000", "Supplier Payables", AccountType.Liability),
         ("GST_OUT", "2100", "GST Output Payable", AccountType.Liability),
@@ -74,6 +76,7 @@ public class AccountingService(PharmaDbContext db, ITenantContext ctx, IClock cl
         ("ROUND_OFF", "4200", "Round Off", AccountType.Income),
         ("DELIVERY", "4300", "Delivery Charges", AccountType.Income),
         ("COGS", "5000", "Cost of Goods Sold", AccountType.Expense),
+        ("DEPT_USE", "5050", "Department Consumption (hospital wards)", AccountType.Expense),
         ("STOCK_LOSS", "5100", "Stock Loss & Write-off", AccountType.Expense),
         ("CLAIM_WRITEOFF", "5110", "Supplier Claims Written Off", AccountType.Expense),
         ("FREIGHT", "5200", "Freight Inward", AccountType.Expense),
@@ -88,7 +91,7 @@ public class AccountingService(PharmaDbContext db, ITenantContext ctx, IClock cl
         ("5690", "Other Expenses", AccountType.Expense),
     ];
     /// <summary>Sub-ledger controlled accounts: only the posting engine may touch them.</summary>
-    private static readonly string[] EngineOnly = ["AR", "AP", "INVENTORY", "CLAIMS"];
+    private static readonly string[] EngineOnly = ["AR", "TRADE_AR", "AP", "INVENTORY", "CLAIMS"];
 
     private Dictionary<string, Guid>? _keys;
     private DateOnly? _lock;
@@ -396,6 +399,77 @@ public class AccountingService(PharmaDbContext db, ITenantContext ctx, IClock cl
             n += await SaveAsync(v, ct);
         }
 
+        // --- hospital: issues to wards (cost charged to departments) and unused returns ---
+        foreach (var w in await Missing(db.WardIssues.Where(x => x.Status == WardIssueStatus.Issued), nameof(WardIssue), "post").Include(x => x.Department)
+                     .AsNoTracking().OrderBy(x => x.IssuedAt).Take(batch).ToListAsync(ct))
+        {
+            var v = new Voucher(w.BranchId, Local(w.IssuedAt!.Value), nameof(WardIssue), w.Id, "post", w.IssueNo, $"Issue {w.IssueNo} to {w.Department!.Name}");
+            Dr(v, "DEPT_USE", w.CostValue);
+            Cr(v, "INVENTORY", w.CostValue);
+            n += await SaveAsync(v, ct);
+        }
+        foreach (var r in await Missing(db.WardReturns.Where(x => x.Reason == WardReturnReason.Unused), nameof(WardReturn), "post").AsNoTracking().Take(batch).ToListAsync(ct))
+        {
+            var v = new Voucher(r.BranchId, Local(r.CreatedAt), nameof(WardReturn), r.Id, "post", r.ReturnNo, $"Unused goods back from ward ({r.ReturnNo})");
+            Dr(v, "INVENTORY", r.CostValue);
+            Cr(v, "DEPT_USE", r.CostValue);
+            n += await SaveAsync(v, ct);
+        }
+
+        // --- manufacturing: materials into WIP, output out of WIP at material cost (rounding to stock gain/loss) ---
+        foreach (var p in await Missing(db.ProductionBatches.Where(x => x.MaterialsIssuedAt != null), nameof(ProductionBatch), "issue").AsNoTracking().Take(batch).ToListAsync(ct))
+        {
+            var v = new Voucher(p.BranchId, Local(p.MaterialsIssuedAt!.Value), nameof(ProductionBatch), p.Id, "issue", p.BatchNo, $"Materials issued to batch {p.BatchNo}");
+            Dr(v, "WIP", p.MaterialCost);
+            Cr(v, "INVENTORY", p.MaterialCost);
+            n += await SaveAsync(v, ct);
+        }
+        foreach (var p in await Missing(db.ProductionBatches.Where(x => x.ProducedAt != null), nameof(ProductionBatch), "output").AsNoTracking().Take(batch).ToListAsync(ct))
+        {
+            var cpu = await db.Batches.Where(b => b.Id == p.OutputBatchId).Select(b => b.CostPerUnit).SingleAsync(ct);
+            var value = Money.R2(p.OutputUnits * cpu);
+            var v = new Voucher(p.BranchId, Local(p.ProducedAt!.Value), nameof(ProductionBatch), p.Id, "output", p.BatchNo, $"Output of batch {p.BatchNo} ({p.OutputUnits:0} units)");
+            Dr(v, "INVENTORY", value);
+            Cr(v, "WIP", p.MaterialCost);
+            if (value < p.MaterialCost) Dr(v, "STOCK_LOSS", p.MaterialCost - value); else Cr(v, "STOCK_GAIN", value - p.MaterialCost);
+            n += await SaveAsync(v, ct);
+        }
+
+        // --- distributor (B2B): trade invoices, credit notes, collections ---
+        foreach (var t in await Missing(db.TradeInvoices, nameof(TradeInvoice), "post").Include(t => t.Lines).ThenInclude(l => l.Product).Include(t => t.Retailer)
+                     .AsSplitQuery().AsNoTracking().OrderBy(t => t.CreatedAt).Take(batch).ToListAsync(ct))
+        {
+            var v = new Voucher(t.BranchId, t.InvoiceDate, nameof(TradeInvoice), t.Id, "post", t.InvoiceNo, $"Trade invoice {t.InvoiceNo} to {t.Retailer!.Name}{(t.InterState ? " (IGST)" : "")}");
+            Dr(v, "TRADE_AR", t.NetAmount, t.RetailerId);
+            Cr(v, "SALES", t.TaxableAmount);
+            Cr(v, "GST_OUT", t.TaxAmount);
+            Cr(v, "ROUND_OFF", t.RoundOff);
+            var cost = t.Lines.Sum(l => Money.R2((l.QtyPacks + l.FreeQtyPacks) * l.Product!.PackSize * l.CostPerUnit));
+            Dr(v, "COGS", cost);
+            Cr(v, "INVENTORY", cost);
+            n += await SaveAsync(v, ct);
+        }
+        foreach (var t in await Missing(db.TradeInvoices.Where(t => t.Status == TradeDocStatus.Cancelled), nameof(TradeInvoice), "cancel").AsNoTracking().Take(batch).ToListAsync(ct))
+            n += await ReverseAsync(nameof(TradeInvoice), t.Id, "post", "cancel", Local(t.CancelledAt ?? clock.UtcNow), $"Cancelled trade invoice {t.InvoiceNo}: {t.CancelReason}", ct);
+        foreach (var c in await Missing(db.TradeCreditNotes, nameof(TradeCreditNote), "post").AsNoTracking().Take(batch).ToListAsync(ct))
+        {
+            var v = new Voucher(c.BranchId, c.Date, nameof(TradeCreditNote), c.Id, "post", c.CreditNoteNo, $"Retailer credit note {c.CreditNoteNo} ({c.Reason})");
+            Dr(v, "SALES_RETURNS", c.TaxableAmount);
+            Dr(v, "GST_OUT", c.TaxAmount);
+            Cr(v, "TRADE_AR", c.Amount, c.RetailerId);
+            if (c.Reason == TradeReturnReason.Saleable) { Dr(v, "INVENTORY", c.CostValue); Cr(v, "COGS", c.CostValue); }
+            n += await SaveAsync(v, ct);
+        }
+        foreach (var r in await Missing(db.TradeReceipts, nameof(TradeReceipt), "post").Include(r => r.Retailer).AsNoTracking().Take(batch).ToListAsync(ct))
+        {
+            var v = new Voucher(r.BranchId, r.Date, nameof(TradeReceipt), r.Id, "post", r.ReceiptNo, $"Collection {r.ReceiptNo} from {r.Retailer!.Name} ({r.Mode} {r.Reference})");
+            Dr(v, SettlementAccount(r.Mode), r.Amount);
+            Cr(v, "TRADE_AR", r.Amount, r.RetailerId);
+            n += await SaveAsync(v, ct);
+        }
+        foreach (var r in await Missing(db.TradeReceipts.Where(r => r.Status == TradeDocStatus.Cancelled), nameof(TradeReceipt), "cancel").AsNoTracking().Take(batch).ToListAsync(ct))
+            n += await ReverseAsync(nameof(TradeReceipt), r.Id, "post", "cancel", Local(clock.UtcNow), $"Cancelled collection {r.ReceiptNo}: {r.CancelReason}", ct);
+
         // --- cash drawer ---
         foreach (var m in await Missing(db.CashMovements, nameof(CashMovement), "post").AsNoTracking().Take(batch).ToListAsync(ct))
         {
@@ -561,6 +635,25 @@ public class AccountingService(PharmaDbContext db, ITenantContext ctx, IClock cl
             return new GstRateRow(rate, (s?.Taxable ?? 0) + (d?.Taxable ?? 0) - ret.Sum(x => x.Taxable), (s?.Tax ?? 0) + (d?.Tax ?? 0) - ret.Sum(x => x.Tax));
         }).ToList();
 
+        // B2B (distributor) invoices less retailer credit notes, by line GST rate
+        var trade = await db.TradeInvoiceLines.AsNoTracking()
+            .Where(l => db.TradeInvoices.Any(t => t.Id == l.TradeInvoiceId && t.BranchId == b && t.Status == TradeDocStatus.Posted && t.InvoiceDate >= from && t.InvoiceDate <= to))
+            .GroupBy(l => l.GstRate).Select(g => new { Rate = g.Key, Taxable = g.Sum(x => x.TaxableAmount), Tax = g.Sum(x => x.TaxAmount) }).ToListAsync(ct);
+        var tradeCn = await db.TradeCreditNoteLines.AsNoTracking()
+            .Where(l => db.TradeCreditNotes.Any(c => c.Id == l.TradeCreditNoteId && c.BranchId == b && c.Date >= from && c.Date <= to))
+            .Join(db.TradeInvoiceLines, l => l.TradeInvoiceLineId, il => il.Id, (l, il) => new { il.GstRate, l.TaxableAmount, l.TaxAmount })
+            .GroupBy(x => x.GstRate).Select(g => new { Rate = g.Key, Taxable = g.Sum(x => x.TaxableAmount), Tax = g.Sum(x => x.TaxAmount) }).ToListAsync(ct);
+        foreach (var rate in trade.Select(t => t.Rate).Union(tradeCn.Select(t => t.Rate)).Distinct())
+        {
+            var t = trade.SingleOrDefault(x => x.Rate == rate);
+            var c = tradeCn.SingleOrDefault(x => x.Rate == rate);
+            var add = new GstRateRow(rate, (t?.Taxable ?? 0) - (c?.Taxable ?? 0), (t?.Tax ?? 0) - (c?.Tax ?? 0));
+            var idx = outward.FindIndex(o => o.Rate == rate);
+            if (idx >= 0) outward[idx] = outward[idx] with { Taxable = outward[idx].Taxable + add.Taxable, Tax = outward[idx].Tax + add.Tax };
+            else outward.Add(add);
+        }
+        outward = outward.OrderBy(o => o.Rate).ToList();
+
         var fromUtc = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(5.5));
         var toUtc = new DateTimeOffset(to.ToDateTime(TimeOnly.MaxValue), TimeSpan.FromHours(5.5));
         var inward = await db.PurchaseInvoiceLines.AsNoTracking()
@@ -585,10 +678,14 @@ public class AccountingService(PharmaDbContext db, ITenantContext ctx, IClock cl
         var payables = (await ledger.PayablesSummaryAsync(ct)).Sum(x => x.Balance);
         var pendingClaims = await db.PurchaseReturns.Where(r => r.BranchId == ctx.BranchId && r.Status == PurchaseReturnStatus.Dispatched).SumAsync(r => (decimal?)r.ClaimAmount, ct) ?? 0;
         var stockValue = await db.StockBalances.Where(s => s.BranchId == ctx.BranchId).SumAsync(s => (decimal?)(s.QtyUnits * s.Batch!.CostPerUnit), ct) ?? 0;
+        var tradeDue = (await db.TradeInvoices.Where(t => t.BranchId == ctx.BranchId && t.Status == TradeDocStatus.Posted).SumAsync(t => (decimal?)t.NetAmount, ct) ?? 0)
+                       - (await db.TradeCreditNotes.Where(c => c.BranchId == ctx.BranchId).SumAsync(c => (decimal?)c.Amount, ct) ?? 0)
+                       - (await db.TradeReceipts.Where(r => r.BranchId == ctx.BranchId && r.Status == TradeDocStatus.Posted).SumAsync(r => (decimal?)r.Amount, ct) ?? 0);
         return
         [
             new("Customer receivables", Bal("AR"), receivables, Bal("AR") - receivables, "Ledger vs customer dues"),
             new("Supplier payables", Bal("AP"), payables, Bal("AP") - payables, "Ledger vs supplier outstanding"),
+            new("Trade receivables", Bal("TRADE_AR"), tradeDue, Bal("TRADE_AR") - tradeDue, "Ledger vs retailer outstanding (B2B)"),
             new("Supplier claims", Bal("CLAIMS"), pendingClaims, Bal("CLAIMS") - pendingClaims, "Ledger vs dispatched returns awaiting credit"),
             new("Inventory", Bal("INVENTORY"), Money.R2(stockValue), Bal("INVENTORY") - Money.R2(stockValue),
                 "Ledger (cost at time of movement) vs stock × current batch cost; small differences come from rounding or re-costed batches"),

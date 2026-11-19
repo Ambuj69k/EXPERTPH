@@ -18,6 +18,46 @@ public class PharmaDbContext(DbContextOptions<PharmaDbContext> options, ITenantC
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<BranchProductPrice> BranchProductPrices => Set<BranchProductPrice>();
+    public DbSet<Retailer> Retailers => Set<Retailer>();
+    public DbSet<TradeRate> TradeRates => Set<TradeRate>();
+    public DbSet<TradeScheme> TradeSchemes => Set<TradeScheme>();
+    public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
+    public DbSet<SalesOrderLine> SalesOrderLines => Set<SalesOrderLine>();
+    public DbSet<TradeInvoice> TradeInvoices => Set<TradeInvoice>();
+    public DbSet<TradeInvoiceLine> TradeInvoiceLines => Set<TradeInvoiceLine>();
+    public DbSet<TradeCreditNote> TradeCreditNotes => Set<TradeCreditNote>();
+    public DbSet<TradeCreditNoteLine> TradeCreditNoteLines => Set<TradeCreditNoteLine>();
+    public DbSet<TradeReceipt> TradeReceipts => Set<TradeReceipt>();
+    public DbSet<TradeReceiptAllocation> TradeReceiptAllocations => Set<TradeReceiptAllocation>();
+    public DbSet<Territory> Territories => Set<Territory>();
+    public DbSet<Doctor> Doctors => Set<Doctor>();
+    public DbSet<TourPlan> TourPlans => Set<TourPlan>();
+    public DbSet<TourPlanEntry> TourPlanEntries => Set<TourPlanEntry>();
+    public DbSet<DailyReport> DailyReports => Set<DailyReport>();
+    public DbSet<DoctorCall> DoctorCalls => Set<DoctorCall>();
+    public DbSet<SampleMovement> SampleMovements => Set<SampleMovement>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<FormularyItem> FormularyItems => Set<FormularyItem>();
+    public DbSet<WardIndent> WardIndents => Set<WardIndent>();
+    public DbSet<WardIndentLine> WardIndentLines => Set<WardIndentLine>();
+    public DbSet<WardIssue> WardIssues => Set<WardIssue>();
+    public DbSet<WardIssueLine> WardIssueLines => Set<WardIssueLine>();
+    public DbSet<WardIssueBatch> WardIssueBatches => Set<WardIssueBatch>();
+    public DbSet<WardReturn> WardReturns => Set<WardReturn>();
+    public DbSet<WardReturnLine> WardReturnLines => Set<WardReturnLine>();
+    public DbSet<Recipe> Recipes => Set<Recipe>();
+    public DbSet<RecipeLine> RecipeLines => Set<RecipeLine>();
+    public DbSet<QcSpec> QcSpecs => Set<QcSpec>();
+    public DbSet<QcSpecTest> QcSpecTests => Set<QcSpecTest>();
+    public DbSet<ProductionBatch> ProductionBatches => Set<ProductionBatch>();
+    public DbSet<MaterialConsumption> MaterialConsumptions => Set<MaterialConsumption>();
+    public DbSet<QcSample> QcSamples => Set<QcSample>();
+    public DbSet<QcResult> QcResults => Set<QcResult>();
+    public DbSet<Dispatch> Dispatches => Set<Dispatch>();
+    public DbSet<DispatchStop> DispatchStops => Set<DispatchStop>();
+    public DbSet<ExpenseClaim> ExpenseClaims => Set<ExpenseClaim>();
+    public DbSet<SfaTarget> SfaTargets => Set<SfaTarget>();
+    public DbSet<Deviation> Deviations => Set<Deviation>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Batch> Batches => Set<Batch>();
     public DbSet<StockBalance> StockBalances => Set<StockBalance>();
@@ -377,6 +417,279 @@ public class PharmaDbContext(DbContextOptions<PharmaDbContext> options, ITenantC
             e.HasIndex(x => new { x.TenantId, x.Status });
         });
         mb.Entity<SupportMessage>(e => e.Property(x => x.Body).HasMaxLength(4000));
+
+        mb.Entity<Retailer>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Gstin).HasMaxLength(15);
+            e.Property(x => x.StateCode).HasMaxLength(2);
+            e.Property(x => x.DrugLicenseNo).HasMaxLength(100);
+            e.Property(x => x.Route).HasMaxLength(100);
+            e.Property(x => x.Address).HasMaxLength(500);
+            e.Property(x => x.CreditLimit).HasPrecision(18, 2);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.Name });
+            e.HasIndex(x => new { x.TenantId, x.Gstin }).IsUnique().HasFilter("[Gstin] IS NOT NULL");
+            e.HasIndex(x => new { x.TenantId, x.SalesmanUserId });
+        });
+        mb.Entity<TradeRate>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.ProductId, x.RetailerId }).IsUnique();
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId);
+            e.HasOne<Retailer>().WithMany().HasForeignKey(x => x.RetailerId);
+        });
+        mb.Entity<TradeScheme>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.HasIndex(x => new { x.TenantId, x.ProductId, x.IsActive });
+        });
+        mb.Entity<SalesOrder>(e =>
+        {
+            e.Property(x => x.OrderNo).HasMaxLength(16);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.OrderNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId);
+        });
+        mb.Entity<TradeInvoice>(e =>
+        {
+            e.Property(x => x.InvoiceNo).HasMaxLength(16);
+            e.Property(x => x.CancelReason).HasMaxLength(300);
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.InvoiceNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.RetailerId, x.Status });
+            e.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId);
+            e.HasOne<SalesOrder>().WithMany().HasForeignKey(x => x.SalesOrderId);
+        });
+        mb.Entity<TradeInvoiceLine>(e => e.Property(x => x.GstRate).HasPrecision(5, 2));
+        mb.Entity<TradeCreditNote>(e =>
+        {
+            e.Property(x => x.CreditNoteNo).HasMaxLength(16);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.CreditNoteNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+            e.HasOne<TradeInvoice>().WithMany().HasForeignKey(x => x.TradeInvoiceId);
+            e.HasOne<Retailer>().WithMany().HasForeignKey(x => x.RetailerId);
+        });
+        mb.Entity<TradeCreditNoteLine>(e => e.HasOne<TradeInvoiceLine>().WithMany().HasForeignKey(x => x.TradeInvoiceLineId));
+        mb.Entity<TradeReceipt>(e =>
+        {
+            e.Property(x => x.ReceiptNo).HasMaxLength(16);
+            e.Property(x => x.Reference).HasMaxLength(100);
+            e.Property(x => x.CancelReason).HasMaxLength(300);
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.ReceiptNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.RetailerId });
+        });
+        mb.Entity<TradeReceiptAllocation>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.TradeInvoiceId });
+            e.HasOne<TradeInvoice>().WithMany().HasForeignKey(x => x.TradeInvoiceId);
+        });
+
+        mb.Entity<Territory>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.RepUserId });
+            e.HasIndex(x => new { x.TenantId, x.ManagerUserId });
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RepUserId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.ManagerUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<Doctor>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Speciality).HasMaxLength(100);
+            e.Property(x => x.Qualification).HasMaxLength(100);
+            e.Property(x => x.Clinic).HasMaxLength(200);
+            e.Property(x => x.Area).HasMaxLength(100);
+            e.Property(x => x.Phone).HasMaxLength(20);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.TerritoryId, x.Name });
+        });
+        mb.Entity<TourPlan>(e =>
+        {
+            e.Property(x => x.ReviewComment).HasMaxLength(500);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.RepUserId, x.Month }).IsUnique();
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RepUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<TourPlanEntry>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.TourPlanId, x.Date, x.DoctorId }).IsUnique();
+            e.HasOne<Doctor>().WithMany().HasForeignKey(x => x.DoctorId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<DailyReport>(e =>
+        {
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.Property(x => x.ReviewComment).HasMaxLength(500);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.RepUserId, x.Date }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RepUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<DoctorCall>(e =>
+        {
+            e.Property(x => x.ProductsDetailed).HasMaxLength(500);
+            e.Property(x => x.Feedback).HasMaxLength(1000);
+            e.Property(x => x.Latitude).HasPrecision(9, 6);
+            e.Property(x => x.Longitude).HasPrecision(9, 6);
+            e.HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.DoctorId });
+            e.HasOne(x => x.Doctor).WithMany().HasForeignKey(x => x.DoctorId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<SampleMovement>(e =>
+        {
+            e.Property(x => x.Note).HasMaxLength(300);
+            e.HasIndex(x => new { x.TenantId, x.RepUserId, x.ProductId });
+            e.HasIndex(x => new { x.TenantId, x.DoctorCallId });
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RepUserId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne<Doctor>().WithMany().HasForeignKey(x => x.DoctorId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        mb.Entity<Department>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Code).HasMaxLength(10);
+            e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        mb.Entity<AppUser>().HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.NoAction);
+        mb.Entity<FormularyItem>(e =>
+        {
+            e.Property(x => x.Notes).HasMaxLength(300);
+            e.HasIndex(x => new { x.TenantId, x.ProductId }).IsUnique();
+        });
+        mb.Entity<WardIndent>(e =>
+        {
+            e.Property(x => x.IndentNo).HasMaxLength(16);
+            e.Property(x => x.EncounterRef).HasMaxLength(50);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.CancelReason).HasMaxLength(300);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.IndentNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.DepartmentId, x.Status });
+            e.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId);
+        });
+        mb.Entity<WardIssue>(e =>
+        {
+            e.Property(x => x.IssueNo).HasMaxLength(16);
+            e.Property(x => x.ReceivedBy).HasMaxLength(100);
+            e.Property(x => x.CancelReason).HasMaxLength(300);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.IssueNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId);
+            e.HasOne<WardIndent>().WithMany().HasForeignKey(x => x.WardIndentId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<WardIssueLine>(e => e.HasOne<WardIndentLine>().WithMany().HasForeignKey(x => x.WardIndentLineId).OnDelete(DeleteBehavior.NoAction));
+        mb.Entity<WardReturn>(e =>
+        {
+            e.Property(x => x.ReturnNo).HasMaxLength(16);
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.ReturnNo }).IsUnique();
+            e.HasOne<WardIssue>().WithMany().HasForeignKey(x => x.WardIssueId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<WardReturnLine>(e =>
+        {
+            e.HasOne<WardIssueBatch>().WithMany().HasForeignKey(x => x.WardIssueBatchId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne<Batch>().WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        mb.Entity<Recipe>(e =>
+        {
+            e.Property(x => x.Notes).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.ProductId, x.VersionNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ProductId }).IsUnique().HasFilter("[Status] = 2"); // one approved version
+        });
+        mb.Entity<RecipeLine>(e => e.HasOne(x => x.Material).WithMany().HasForeignKey(x => x.MaterialProductId).OnDelete(DeleteBehavior.NoAction));
+        mb.Entity<QcSpec>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.ProductId, x.VersionNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ProductId }).IsUnique().HasFilter("[Status] = 2");
+        });
+        mb.Entity<QcSpecTest>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Unit).HasMaxLength(20);
+            e.Property(x => x.Requirement).HasMaxLength(300);
+        });
+        mb.Entity<ProductionBatch>(e =>
+        {
+            e.Property(x => x.BatchNo).HasMaxLength(30);
+            e.Property(x => x.DecisionSignature).HasMaxLength(200);
+            e.Property(x => x.DecisionNote).HasMaxLength(500);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.ProductId, x.BatchNo });
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasOne(x => x.Recipe).WithMany().HasForeignKey(x => x.RecipeId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne<Batch>().WithMany().HasForeignKey(x => x.OutputBatchId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<MaterialConsumption>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.BatchId });
+            e.HasOne(x => x.Batch).WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<QcSample>(e =>
+        {
+            e.Property(x => x.SampleNo).HasMaxLength(16);
+            e.Property(x => x.TesterSignature).HasMaxLength(200);
+            e.HasIndex(x => new { x.TenantId, x.BatchId });
+            e.HasOne(x => x.Batch).WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(x => x.Spec).WithMany().HasForeignKey(x => x.QcSpecId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<QcResult>(e =>
+        {
+            e.Property(x => x.Text).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.QcSampleId });
+            e.HasOne<QcSpecTest>().WithMany().HasForeignKey(x => x.QcSpecTestId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        mb.Entity<Dispatch>(e =>
+        {
+            e.Property(x => x.DispatchNo).HasMaxLength(16);
+            e.Property(x => x.Route).HasMaxLength(100);
+            e.Property(x => x.Vehicle).HasMaxLength(30);
+            e.Property(x => x.DriverName).HasMaxLength(100);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.BranchId, x.DispatchNo }).IsUnique();
+            e.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<DispatchStop>(e =>
+        {
+            e.Property(x => x.ReceivedBy).HasMaxLength(100);
+            e.Property(x => x.Note).HasMaxLength(300);
+            e.HasIndex(x => new { x.TenantId, x.TradeInvoiceId });
+            e.HasOne(x => x.Invoice).WithMany().HasForeignKey(x => x.TradeInvoiceId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<ExpenseClaim>(e =>
+        {
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.Note).HasMaxLength(300);
+            e.Property(x => x.ReviewComment).HasMaxLength(300);
+            e.HasIndex(x => new { x.TenantId, x.RepUserId, x.Date });
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RepUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<SfaTarget>(e =>
+        {
+            e.HasIndex(x => new { x.TenantId, x.RepUserId, x.Month }).IsUnique();
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.RepUserId).OnDelete(DeleteBehavior.NoAction);
+        });
+        mb.Entity<Deviation>(e =>
+        {
+            e.Property(x => x.DeviationNo).HasMaxLength(16);
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.RootCause).HasMaxLength(2000);
+            e.Property(x => x.CorrectiveAction).HasMaxLength(2000);
+            e.Property(x => x.PreventiveAction).HasMaxLength(2000);
+            e.Property(x => x.ClosureSignature).HasMaxLength(200);
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasIndex(x => new { x.TenantId, x.DeviationNo }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ProductionBatchId, x.Status });
+            e.HasOne<ProductionBatch>().WithMany().HasForeignKey(x => x.ProductionBatchId).OnDelete(DeleteBehavior.NoAction);
+        });
 
         mb.Entity<BranchProductPrice>(e =>
         {

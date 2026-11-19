@@ -1,6 +1,6 @@
 // Thin typed client for the PharmaOS API. All money/qty values arrive as JSON numbers (decimals on the server).
 
-export type Role = 'Owner' | 'Pharmacist' | 'Cashier' | 'PurchaseClerk' | 'Accountant' | 'DeliveryAgent';
+export type Role = 'Owner' | 'Pharmacist' | 'Cashier' | 'PurchaseClerk' | 'Accountant' | 'DeliveryAgent' | 'Salesman' | 'MedicalRep' | 'AreaManager' | 'WardStaff' | 'Production' | 'QcAnalyst' | 'QaManager';
 export type Schedule = 'None' | 'H' | 'H1' | 'X' | 'NarcoticPsychotropic' | 'G';
 export type PaymentMode = 'Cash' | 'Card' | 'Upi' | 'Credit' | 'Loyalty';
 
@@ -81,7 +81,7 @@ export interface DailySales {
   costOfGoods: number; grossMargin: number;
   paymentsByMode: { mode: PaymentMode; amount: number }[]; refundsByMode: { mode: PaymentMode; amount: number }[];
 }
-export interface User { id: string; email: string; displayName: string; role: Role; defaultBranchId: string; isActive: boolean }
+export interface User { id: string; email: string; displayName: string; role: Role; defaultBranchId: string; isActive: boolean; departmentId?: string | null }
 export interface Movement { at: string; type: string; batchNo: string; qtyUnits: number; sourceType: string; sourceId: string; note?: string | null }
 
 export type SettlementMode = 'Cash' | 'BankTransfer' | 'Upi' | 'Cheque' | 'Card';
@@ -611,4 +611,273 @@ export const api = {
 
   nearExpiry: (days: number) => request<NearExpiryRow[]>('GET', `/reports/near-expiry${qs({ days })}`),
   dailySales: (date: string) => request<DailySales>('GET', `/reports/daily-sales${qs({ date })}`),
+};
+
+// ---------- Distributor (B2B) ----------
+export type TradeStatus = 'Posted' | 'Cancelled';
+export type OrderState = 'Open' | 'Invoiced' | 'Cancelled';
+export type TradeReturnReason = 'Saleable' | 'Expired' | 'Damaged' | 'Other';
+export interface Retailer {
+  id: string; name: string; gstin?: string | null; stateCode: string; drugLicenseNo?: string | null; drugLicenseValidTo?: string | null; licenceExpired: boolean;
+  phone?: string | null; address?: string | null; route?: string | null; creditLimit: number; creditDays: number; salesmanUserId?: string | null;
+  salesmanName?: string | null; isActive: boolean; version: number; outstanding: number; overdue: number;
+}
+export interface RetailerInput {
+  name: string; gstin?: string | null; stateCode: string; drugLicenseNo?: string | null; drugLicenseValidTo?: string | null; phone?: string | null;
+  address?: string | null; route?: string | null; creditLimit: number; creditDays: number; salesmanUserId?: string | null; isActive: boolean; version?: number | null;
+}
+export interface TradeRateRow { productId: string; productName: string; packSize: number; gstRate: number; defaultRate?: number | null; retailerRate?: number | null }
+export interface TradeScheme {
+  id: string; productId: string; productName: string; name: string; buyQtyPacks: number; freeQtyPacks: number; discountPercent: number;
+  validFrom: string; validTo: string; isActive: boolean;
+}
+export interface SalesOrder {
+  id: string; orderNo: string; retailerId: string; retailerName: string; status: OrderState; notes?: string | null; takenBy?: string | null;
+  createdAt: string; tradeInvoiceId?: string | null; lines: { productId: string; productName: string; qtyPacks: number; availablePacks: number }[];
+}
+export interface TradeLine {
+  id: string; lineNo: number; productId: string; productName: string; hsnCode?: string | null; batchNo: string; expiryDate: string; qtyPacks: number;
+  freeQtyPacks: number; ratePerPack: number; discountPercent: number; taxableAmount: number; gstRate: number; taxAmount: number; lineTotal: number; returnedPacks: number;
+}
+export interface TradeInvoice {
+  id: string; invoiceNo: string; invoiceDate: string; dueDate: string; status: TradeStatus; retailerId: string; retailerName: string;
+  retailerGstin?: string | null; retailerLicence?: string | null; interState: boolean; grossAmount: number; discountAmount: number; taxableAmount: number;
+  taxAmount: number; roundOff: number; netAmount: number; outstanding: number; cancelReason?: string | null; lines: TradeLine[]; seller: Sale['header'];
+}
+export interface TradeInvoiceListItem { id: string; invoiceNo: string; invoiceDate: string; dueDate: string; retailerName: string; status: TradeStatus; netAmount: number; outstanding: number }
+export interface CreditNote { id: string; creditNoteNo: string; date: string; invoiceNo: string; reason: TradeReturnReason; taxableAmount: number; taxAmount: number; amount: number }
+export interface TradeReceipt {
+  id: string; receiptNo: string; date: string; retailerId: string; retailerName: string; mode: SettlementMode; amount: number; allocated: number;
+  reference?: string | null; status: TradeStatus; collectedBy?: string | null;
+}
+export interface RetailerStatement {
+  retailerId: string; name: string; outstanding: number; overdue: number; creditLimit: number; availableCredit: number;
+  openInvoices: OpenDocument[]; lines: Statement['lines'];
+}
+export interface TradeAging { buckets: AgingBucket[]; total: number; topOverdue: Retailer[] }
+export interface SalesmanRow { userId?: string | null; name: string; invoices: number; sales: number; collections: number; orders: number }
+export interface TradeInvoiceRequest { clientRequestId: string; retailerId: string; lines: { productId: string; qtyPacks: number; discountPercent?: number }[]; salesOrderId?: string | null; creditOverrideReason?: string | null }
+
+export const tradeApi = {
+  retailers: (q = '') => request<Retailer[]>('GET', `/distribution/retailers${qs({ q })}`),
+  saveRetailer: (id: string | null, b: RetailerInput) => request<Retailer>(id ? 'PUT' : 'POST', `/distribution/retailers${id ? `/${id}` : ''}`, b),
+  statement: (id: string) => request<RetailerStatement>('GET', `/distribution/retailers/${id}/statement`),
+  rates: (q = '', retailerId?: string | null) => request<TradeRateRow[]>('GET', `/distribution/rates${qs({ q, retailerId })}`),
+  setRate: (productId: string, retailerId: string | null, ratePerPack: number | null) => request<void>('PUT', '/distribution/rates', { productId, retailerId, ratePerPack }),
+  schemes: () => request<TradeScheme[]>('GET', '/distribution/schemes'),
+  saveScheme: (id: string | null, b: Omit<TradeScheme, 'id' | 'productName'>) => request<TradeScheme>(id ? 'PUT' : 'POST', `/distribution/schemes${id ? `/${id}` : ''}`, b),
+  orders: (status?: string) => request<SalesOrder[]>('GET', `/distribution/orders${qs({ status })}`),
+  order: (id: string) => request<SalesOrder>('GET', `/distribution/orders/${id}`),
+  createOrder: (b: { retailerId: string; notes?: string | null; lines: { productId: string; qtyPacks: number }[] }) => request<SalesOrder>('POST', '/distribution/orders', b),
+  cancelOrder: (id: string) => request<void>('POST', `/distribution/orders/${id}/cancel`, {}),
+  invoiceOrder: (id: string, creditOverrideReason?: string | null) => request<TradeInvoice>('POST', `/distribution/orders/${id}/invoice`, { creditOverrideReason }),
+  invoices: (retailerId?: string) => request<TradeInvoiceListItem[]>('GET', `/distribution/invoices${qs({ retailerId })}`),
+  invoice: (id: string) => request<TradeInvoice>('GET', `/distribution/invoices/${id}`),
+  createInvoice: (b: TradeInvoiceRequest) => request<TradeInvoice>('POST', '/distribution/invoices', b),
+  cancelInvoice: (id: string, reason: string) => request<TradeInvoice>('POST', `/distribution/invoices/${id}/cancel`, { reason }),
+  createCreditNote: (b: { clientRequestId: string; tradeInvoiceId: string; reason: TradeReturnReason; notes?: string | null; lines: { tradeInvoiceLineId: string; qtyPacks: number }[] }) =>
+    request<CreditNote>('POST', '/distribution/credit-notes', b),
+  receipts: (retailerId?: string) => request<TradeReceipt[]>('GET', `/distribution/receipts${qs({ retailerId })}`),
+  createReceipt: (b: { retailerId: string; mode: SettlementMode; amount: number; reference?: string | null }) => request<TradeReceipt>('POST', '/distribution/receipts', b),
+  cancelReceipt: (id: string, reason: string) => request<TradeReceipt>('POST', `/distribution/receipts/${id}/cancel`, { reason }),
+  aging: () => request<TradeAging>('GET', '/distribution/reports/aging'),
+  salesmen: (from: string, to: string) => request<SalesmanRow[]>('GET', `/distribution/reports/salesmen${qs({ from, to })}`),
+};
+
+// ---------- Field force (MR) ----------
+export type SfaStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
+export type DoctorClass = 'A' | 'B' | 'C';
+export interface Territory { id: string; name: string; repUserId?: string | null; repName?: string | null; managerUserId?: string | null; managerName?: string | null; isActive: boolean; doctors: number }
+export interface TeamMember { userId: string; name: string; role: Role; territories: string[] }
+export interface Doctor {
+  id: string; name: string; speciality?: string | null; qualification?: string | null; clinic?: string | null; area?: string | null; phone?: string | null;
+  territoryId: string; territoryName: string; class: DoctorClass; consentRecordedOn?: string | null; isActive: boolean; anonymised: boolean; version: number; lastVisit?: string | null;
+}
+export interface DoctorInput {
+  name: string; speciality?: string | null; qualification?: string | null; clinic?: string | null; area?: string | null; phone?: string | null;
+  territoryId: string; class: DoctorClass; consentRecordedOn?: string | null; isActive: boolean; version?: number | null;
+}
+export interface TourEntry { date: string; doctorId: string; doctorName: string; class: DoctorClass }
+export interface TourPlan { id: string; repUserId: string; repName: string; month: string; status: SfaStatus; reviewComment?: string | null; reviewedBy?: string | null; version: number; entries: TourEntry[] }
+export interface DoctorCall {
+  id: string; doctorId: string; doctorName: string; class: DoctorClass; callAt: string; productsDetailed?: string | null; feedback?: string | null;
+  jointWorkWith?: string | null; hasLocation: boolean; wasPlanned: boolean; samples: { productId: string; productName: string; qty: number }[];
+}
+export interface DailyReport {
+  id: string; repUserId: string; repName: string; date: string; status: SfaStatus; notes?: string | null; reviewComment?: string | null; reviewedBy?: string | null;
+  version: number; calls: DoctorCall[]; planned: TourEntry[];
+}
+export interface CallInput {
+  clientRequestId: string; doctorId: string; productsDetailed?: string | null; feedback?: string | null; jointWorkUserId?: string | null;
+  latitude?: number | null; longitude?: number | null; samples: { productId: string; qty: number }[];
+}
+export interface ReportListItem { id: string; repUserId: string; repName: string; date: string; status: SfaStatus; calls: number; submittedAt?: string | null }
+export interface SampleBalance { repUserId: string; repName: string; productId: string; productName: string; issued: number; given: number; returned: number; balance: number }
+export interface SampleLedgerRow { at: string; repName: string; productName: string; kind: string; qty: number; doctorName?: string | null; note?: string | null }
+export interface CoverageRow {
+  repUserId: string; repName: string; doctors: number; requiredVisits: number; visits: number; doctorsMet: number; coveragePercent: number;
+  planned: number; plannedMet: number; reportsPending: number; missed: { doctorId: string; name: string; class: DoctorClass; required: number; visits: number }[];
+}
+
+export const sfaApi = {
+  team: () => request<TeamMember[]>('GET', '/sfa/team'),
+  territories: () => request<Territory[]>('GET', '/sfa/territories'),
+  saveTerritory: (id: string | null, b: { name: string; repUserId?: string | null; managerUserId?: string | null; isActive: boolean }) =>
+    request<Territory>(id ? 'PUT' : 'POST', `/sfa/territories${id ? `/${id}` : ''}`, b),
+  doctors: (q = '', territoryId?: string, includeInactive = false) => request<Doctor[]>('GET', `/sfa/doctors${qs({ q, territoryId, includeInactive })}`),
+  saveDoctor: (id: string | null, b: DoctorInput) => request<Doctor>(id ? 'PUT' : 'POST', `/sfa/doctors${id ? `/${id}` : ''}`, b),
+  anonymiseDoctor: (id: string) => request<void>('POST', `/sfa/doctors/${id}/anonymise`, {}),
+  myTourPlan: (month: string) => request<TourPlan>('GET', `/sfa/tour-plans/mine${qs({ month })}`),
+  tourPlans: (month: string) => request<TourPlan[]>('GET', `/sfa/tour-plans${qs({ month })}`),
+  saveTourPlan: (id: string, version: number, entries: { date: string; doctorId: string }[]) => request<TourPlan>('PUT', `/sfa/tour-plans/${id}`, { version, entries }),
+  submitTourPlan: (id: string) => request<TourPlan>('POST', `/sfa/tour-plans/${id}/submit`, {}),
+  reviewTourPlan: (id: string, approve: boolean, comment?: string) => request<TourPlan>('POST', `/sfa/tour-plans/${id}/${approve ? 'approve' : 'reject'}`, { comment }),
+  openDay: (date: string) => request<DailyReport>('POST', '/sfa/reports/open', { date }),
+  report: (id: string) => request<DailyReport>('GET', `/sfa/reports/${id}`),
+  reports: (from: string, to: string, status?: string, repUserId?: string) => request<ReportListItem[]>('GET', `/sfa/reports${qs({ from, to, status, repUserId })}`),
+  addCall: (reportId: string, b: CallInput) => request<DailyReport>('POST', `/sfa/reports/${reportId}/calls`, b),
+  removeCall: (reportId: string, callId: string) => request<DailyReport>('DELETE', `/sfa/reports/${reportId}/calls/${callId}`),
+  submitReport: (id: string, version: number, notes?: string | null) => request<DailyReport>('POST', `/sfa/reports/${id}/submit`, { version, notes }),
+  reviewReport: (id: string, approve: boolean, comment?: string) => request<DailyReport>('POST', `/sfa/reports/${id}/${approve ? 'approve' : 'reject'}`, { comment }),
+  samples: (repUserId?: string) => request<SampleBalance[]>('GET', `/sfa/samples${qs({ repUserId })}`),
+  sampleLedger: (repUserId: string) => request<SampleLedgerRow[]>('GET', `/sfa/samples/ledger${qs({ repUserId })}`),
+  moveSamples: (kind: 'issue' | 'return', b: { repUserId: string; productId: string; qty: number; note?: string | null }) => request<void>('POST', `/sfa/samples/${kind}`, b),
+  coverage: (month: string) => request<CoverageRow[]>('GET', `/sfa/coverage${qs({ month })}`),
+};
+
+// ---------- Hospital pharmacy ----------
+export type IndentStatus = 'Open' | 'PartlyIssued' | 'Closed' | 'Cancelled';
+export type WardIssueStatus = 'PendingCheck' | 'Issued' | 'Cancelled';
+export type WardReturnReason = 'Unused' | 'Expired' | 'Damaged';
+export interface Department { id: string; name: string; code: string; isActive: boolean; staff: number }
+export interface FormularyRow { productId: string; productName: string; composition?: string | null; schedule: Schedule; baseUnit: string; isHighAlert: boolean; needsSecondCheck: boolean; notes?: string | null; stockUnits: number }
+export interface WardIndent {
+  id: string; indentNo: string; departmentId: string; departmentName: string; status: IndentStatus; priority: 'Routine' | 'Urgent'; encounterRef?: string | null;
+  notes?: string | null; requestedBy?: string | null; createdAt: string; firstIssuedAt?: string | null; cancelReason?: string | null; version: number;
+  lines: { id: string; productId: string; productName: string; baseUnit: string; qtyUnits: number; issuedUnits: number; pendingUnits: number; stockUnits: number }[];
+}
+export interface WardIssue {
+  id: string; issueNo: string; departmentId: string; departmentName: string; indentNo?: string | null; status: WardIssueStatus; needsSecondCheck: boolean;
+  preparedBy: string; preparedAt: string; checkedBy?: string | null; issuedAt?: string | null; receivedBy?: string | null; costValue: number; cancelReason?: string | null; version: number;
+  lines: { id: string; productId: string; productName: string; baseUnit: string; qtyUnits: number; highAlert: boolean;
+    batches: { id: string; batchNo: string; expiryDate: string; qtyUnits: number; returnedUnits: number; costPerUnit: number }[] }[];
+}
+export interface WardReturnRow { id: string; returnNo: string; issueNo: string; departmentName: string; reason: WardReturnReason; costValue: number; createdAt: string }
+export interface ConsumptionReport {
+  departments: { departmentId: string; departmentName: string; issues: number; issuedValue: number; returnedValue: number; netValue: number; openIndents: number; avgHoursToFirstIssue?: number | null }[];
+  topProducts: { productId: string; productName: string; baseUnit: string; units: number; value: number }[];
+  totalNet: number;
+}
+
+export const hospitalApi = {
+  departments: () => request<Department[]>('GET', '/hospital/departments'),
+  saveDepartment: (id: string | null, b: { name: string; code: string; isActive: boolean }) => request<Department>(id ? 'PUT' : 'POST', `/hospital/departments${id ? `/${id}` : ''}`, b),
+  setStaffDepartment: (userId: string, departmentId: string | null) => request<void>('PUT', `/hospital/staff/${userId}`, { departmentId }),
+  formulary: (q = '') => request<FormularyRow[]>('GET', `/hospital/formulary${qs({ q })}`),
+  setFormulary: (b: { productId: string; inFormulary: boolean; isHighAlert: boolean; notes?: string | null }) => request<void>('PUT', '/hospital/formulary', b),
+  indents: (status?: string) => request<WardIndent[]>('GET', `/hospital/indents${qs({ status })}`),
+  indent: (id: string) => request<WardIndent>('GET', `/hospital/indents/${id}`),
+  createIndent: (b: { departmentId: string; priority: string; encounterRef?: string | null; notes?: string | null; lines: { productId: string; qtyUnits: number }[] }) =>
+    request<WardIndent>('POST', '/hospital/indents', b),
+  cancelIndent: (id: string, reason: string) => request<WardIndent>('POST', `/hospital/indents/${id}/cancel`, { reason }),
+  issues: (status?: string) => request<WardIssue[]>('GET', `/hospital/issues${qs({ status })}`),
+  issue: (id: string) => request<WardIssue>('GET', `/hospital/issues/${id}`),
+  prepareIssue: (b: { departmentId: string; wardIndentId?: string | null; receivedBy?: string | null; lines: { productId: string; qtyUnits: number; wardIndentLineId?: string | null }[] }) =>
+    request<WardIssue>('POST', '/hospital/issues', b),
+  verifyIssue: (id: string, version: number) => request<WardIssue>('POST', `/hospital/issues/${id}/verify`, { version }),
+  cancelIssue: (id: string, reason: string) => request<WardIssue>('POST', `/hospital/issues/${id}/cancel`, { reason }),
+  returns: () => request<WardReturnRow[]>('GET', '/hospital/returns'),
+  createReturn: (b: { wardIssueId: string; reason: WardReturnReason; notes?: string | null; lines: { wardIssueBatchId: string; qtyUnits: number }[] }) =>
+    request<WardReturnRow>('POST', '/hospital/returns', b),
+  consumption: (from: string, to: string) => request<ConsumptionReport>('GET', `/hospital/reports/consumption${qs({ from, to })}`),
+};
+
+// ---------- Manufacturing & QA (pilot, not GMP-validated) ----------
+export type MfgDocStatus = 'Draft' | 'Approved' | 'Retired';
+export type ProductionStatus = 'Planned' | 'InProcess' | 'Quarantine' | 'Released' | 'Rejected' | 'Cancelled';
+export interface Recipe { id: string; productId: string; productName: string; versionNo: number; batchSizeUnits: number; status: MfgDocStatus; notes?: string | null; approvedBy?: string | null; approvedAt?: string | null; lines: { materialProductId: string; materialName: string; baseUnit: string; qtyUnits: number }[] }
+export interface SpecTest { id: string; seq: number; name: string; unit?: string | null; min?: number | null; max?: number | null; requirement?: string | null }
+export interface QcSpec { id: string; productId: string; productName: string; versionNo: number; status: MfgDocStatus; approvedBy?: string | null; tests: SpecTest[] }
+export interface QcSample {
+  id: string; sampleNo: string; batchId: string; productName: string; batchNo: string; specVersion: number; status: 'Pending' | 'Passed' | 'Failed';
+  testerSignature?: string | null; testedAt?: string | null; createdAt: string; tests: SpecTest[];
+  results: { testId: string; testName: string; unit?: string | null; min?: number | null; max?: number | null; requirement?: string | null; value?: number | null; text?: string | null; pass: boolean }[];
+}
+export interface ProductionBatch {
+  id: string; batchNo: string; productId: string; productName: string; recipeVersion: number; mfgDate: string; expiryDate: string; mrp: number; plannedUnits: number;
+  status: ProductionStatus; materialCost: number; outputUnits: number; yieldPercent?: number | null; outputBatchId?: string | null; createdBy?: string | null; createdAt: string;
+  decisionSignature?: string | null; decisionAt?: string | null; decisionNote?: string | null; version: number;
+  materials: { materialProductId: string; materialName: string; batchId: string; batchNo: string; expiryDate: string; qtyUnits: number; costPerUnit: number }[];
+  samples: QcSample[];
+}
+export interface LotNode { batchId: string; productName: string; batchNo: string; expiryDate: string; qtyUnits: number; productionStatus?: string | null; productionBatchId?: string | null }
+export interface Genealogy { batchId: string; productName: string; batchNo: string; isBlocked: boolean; blockReason?: string | null; madeFrom: LotNode[]; usedIn: LotNode[]; samples: QcSample[] }
+
+export const mfgApi = {
+  recipes: () => request<Recipe[]>('GET', '/mfg/recipes'),
+  createRecipe: (b: { productId: string; batchSizeUnits: number; notes?: string | null; lines: { materialProductId: string; qtyUnits: number }[] }) => request<Recipe>('POST', '/mfg/recipes', b),
+  approveRecipe: (id: string, password: string) => request<Recipe>('POST', `/mfg/recipes/${id}/approve`, { password }),
+  specs: () => request<QcSpec[]>('GET', '/mfg/specs'),
+  createSpec: (b: { productId: string; tests: { name: string; unit?: string | null; min?: number | null; max?: number | null; requirement?: string | null }[] }) => request<QcSpec>('POST', '/mfg/specs', b),
+  approveSpec: (id: string, password: string) => request<QcSpec>('POST', `/mfg/specs/${id}/approve`, { password }),
+  samples: (status?: string) => request<QcSample[]>('GET', `/mfg/samples${qs({ status })}`),
+  createSample: (batchId: string) => request<QcSample>('POST', '/mfg/samples', { batchId }),
+  recordResults: (id: string, password: string, results: { qcSpecTestId: string; value?: number | null; text?: string | null; pass?: boolean | null }[]) =>
+    request<QcSample>('POST', `/mfg/samples/${id}/results`, { password, results }),
+  batches: (status?: string) => request<ProductionBatch[]>('GET', `/mfg/batches${qs({ status })}`),
+  batch: (id: string) => request<ProductionBatch>('GET', `/mfg/batches/${id}`),
+  planBatch: (b: { recipeId: string; batchNo: string; expiryDate: string; mrp: number; plannedUnits: number }) => request<ProductionBatch>('POST', '/mfg/batches', b),
+  issueMaterials: (id: string) => request<ProductionBatch>('POST', `/mfg/batches/${id}/issue-materials`, {}),
+  recordOutput: (id: string, outputUnits: number) => request<ProductionBatch>('POST', `/mfg/batches/${id}/output`, { outputUnits }),
+  cancelBatch: (id: string) => request<ProductionBatch>('POST', `/mfg/batches/${id}/cancel`, {}),
+  decide: (id: string, release: boolean, password: string, note?: string | null) => request<ProductionBatch>('POST', `/mfg/batches/${id}/${release ? 'release' : 'reject'}`, { password, note }),
+  lots: (q: string) => request<LotNode[]>('GET', `/mfg/lots${qs({ q })}`),
+  genealogy: (batchId: string) => request<Genealogy>('GET', `/mfg/genealogy/${batchId}`),
+};
+
+// ---------- Follow-ups: dispatch, MR expenses/targets, controlled-drug register, deviations ----------
+export interface PendingDispatchInvoice { id: string; invoiceNo: string; invoiceDate: string; retailerName: string; route?: string | null; netAmount: number; previouslyFailed: boolean }
+export interface DispatchStop { id: string; seq: number; tradeInvoiceId: string; invoiceNo: string; retailerName: string; address?: string | null; phone?: string | null; netAmount: number; status: 'Pending' | 'Delivered' | 'Failed'; receivedBy?: string | null; note?: string | null; at?: string | null }
+export interface DispatchTrip { id: string; dispatchNo: string; date: string; route?: string | null; vehicle?: string | null; driverName?: string | null; status: 'Packing' | 'OnRoute' | 'Completed' | 'Cancelled'; createdAt: string; departedAt?: string | null; completedAt?: string | null; version: number; value: number; stops: DispatchStop[] }
+export interface PickLine { productId: string; productName: string; batchNo: string; expiryDate: string; packs: number; freePacks: number; invoices: string[] }
+export const dispatchApi = {
+  pending: () => request<PendingDispatchInvoice[]>('GET', '/distribution/dispatch/pending'),
+  list: (status?: string) => request<DispatchTrip[]>('GET', `/distribution/dispatches${qs({ status })}`),
+  get: (id: string) => request<DispatchTrip>('GET', `/distribution/dispatches/${id}`),
+  pickList: (id: string) => request<PickLine[]>('GET', `/distribution/dispatches/${id}/pick-list`),
+  create: (b: { route?: string | null; vehicle?: string | null; driverName?: string | null; invoiceIds: string[] }) => request<DispatchTrip>('POST', '/distribution/dispatches', b),
+  depart: (id: string) => request<DispatchTrip>('POST', `/distribution/dispatches/${id}/depart`, {}),
+  cancel: (id: string) => request<DispatchTrip>('POST', `/distribution/dispatches/${id}/cancel`, {}),
+  confirm: (id: string, stopId: string, b: { delivered: boolean; receivedBy?: string | null; note?: string | null }) => request<DispatchTrip>('POST', `/distribution/dispatches/${id}/stops/${stopId}`, b),
+};
+
+export type ExpenseCategory = 'Travel' | 'Food' | 'Lodging' | 'Other';
+export interface ExpenseClaim { id: string; repUserId: string; repName: string; date: string; category: ExpenseCategory; amount: number; km?: number | null; note?: string | null; status: SfaStatus; reviewedBy?: string | null; reviewComment?: string | null }
+export interface ScorecardRow { repUserId: string; repName: string; callsTarget: number; calls: number; coverageTargetPercent: number; coveragePercent: number; expensesApproved: number; expensesPending: number; callsMet: boolean; coverageMet: boolean }
+export const sfaExtraApi = {
+  expenses: (month: string, status?: string) => request<ExpenseClaim[]>('GET', `/sfa/expenses${qs({ month, status })}`),
+  claim: (b: { date: string; category: ExpenseCategory; amount: number; km?: number | null; note?: string | null }) => request<ExpenseClaim>('POST', '/sfa/expenses', b),
+  review: (id: string, approve: boolean, comment?: string) => request<ExpenseClaim>('POST', `/sfa/expenses/${id}/${approve ? 'approve' : 'reject'}`, { comment }),
+  setTarget: (b: { repUserId: string; month: string; callsTarget: number; coverageTargetPercent: number }) => request<void>('PUT', '/sfa/targets', b),
+  scorecard: (month: string) => request<ScorecardRow[]>('GET', `/sfa/scorecard${qs({ month })}`),
+};
+
+export interface RegisterBatch {
+  productId: string; productName: string; schedule: Schedule; baseUnit: string; batchId: string; batchNo: string; expiryDate: string; opening: number; received: number; issued: number; closing: number;
+  entries: { at: string; type: string; documentNo?: string | null; party?: string | null; prescriber?: string | null; in: number; out: number; balance: number }[];
+}
+export const controlledDrugRegister = (from: string, to: string) => request<RegisterBatch[]>('GET', `/reports/controlled-drugs${qs({ from, to })}`);
+
+export type DeviationSeverity = 'Minor' | 'Major' | 'Critical';
+export interface Deviation {
+  id: string; deviationNo: string; productionBatchId?: string | null; batchNo?: string | null; title: string; description: string; severity: DeviationSeverity;
+  status: 'Open' | 'CapaInProgress' | 'Closed'; rootCause?: string | null; correctiveAction?: string | null; preventiveAction?: string | null; capaOwner?: string | null;
+  capaDueDate?: string | null; overdue: boolean; raisedBy: string; raisedAt: string; closureSignature?: string | null; closedAt?: string | null; version: number;
+}
+export const deviationApi = {
+  list: (status?: string) => request<Deviation[]>('GET', `/mfg/deviations${qs({ status })}`),
+  raise: (b: { productionBatchId?: string | null; title: string; description: string; severity: DeviationSeverity }) => request<Deviation>('POST', '/mfg/deviations', b),
+  investigate: (id: string, b: { rootCause: string; correctiveAction: string; preventiveAction?: string | null; capaOwnerUserId?: string | null; capaDueDate?: string | null; version: number }) =>
+    request<Deviation>('POST', `/mfg/deviations/${id}/investigation`, b),
+  close: (id: string, password: string, note?: string | null) => request<Deviation>('POST', `/mfg/deviations/${id}/close`, { password, note }),
 };

@@ -12,7 +12,7 @@ public record RegisterRequest(string BusinessName, string BranchName, string Bra
 
 public record LoginRequest(string Email, string Password);
 
-public record UserDto(Guid Id, string Email, string DisplayName, UserRole Role, Guid DefaultBranchId, bool IsActive);
+public record UserDto(Guid Id, string Email, string DisplayName, UserRole Role, Guid DefaultBranchId, bool IsActive, Guid? DepartmentId = null);
 
 public record CreateUserRequest(string Email, string DisplayName, string Password, UserRole Role, Guid? BranchId);
 
@@ -160,6 +160,22 @@ public partial class AccountService(PharmaDbContext db, ITenantContext ctx, IClo
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Electronic signature: the signed-in user re-enters their password to confirm an action (e.g. QA batch release).
+    /// Wrong passwords count towards the normal lockout. Returns the signer's display name.
+    /// </summary>
+    public async Task<string> VerifySignatureAsync(string? password, CancellationToken ct = default)
+    {
+        var user = await db.Users.SingleAsync(u => u.Id == ctx.UserId, ct);
+        EnsureNotLocked(user.LockedUntil);
+        if (Hasher.VerifyHashedPassword(user, user.PasswordHash, password ?? "") == PasswordVerificationResult.Failed)
+        {
+            await RegisterFailureAsync(user, ct);
+            throw new BusinessException("invalid_signature", "Password is incorrect — the signature was not applied.", 403);
+        }
+        return user.DisplayName;
+    }
+
     public async Task DisableMfaAsync(string password, CancellationToken ct = default)
     {
         var user = await db.Users.SingleAsync(u => u.Id == ctx.UserId, ct);
@@ -232,7 +248,7 @@ public partial class AccountService(PharmaDbContext db, ITenantContext ctx, IClo
 
     public async Task<List<UserDto>> ListUsersAsync(CancellationToken ct = default) =>
         await db.Users.OrderBy(u => u.DisplayName)
-            .Select(u => new UserDto(u.Id, u.Email, u.DisplayName, u.Role, u.DefaultBranchId, u.IsActive))
+            .Select(u => new UserDto(u.Id, u.Email, u.DisplayName, u.Role, u.DefaultBranchId, u.IsActive, u.DepartmentId))
             .ToListAsync(ct);
 
     public async Task<UserDto> CreateUserAsync(CreateUserRequest r, CancellationToken ct = default)

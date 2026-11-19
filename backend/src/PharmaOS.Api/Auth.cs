@@ -29,6 +29,19 @@ public static class Policies
     public const string Admin = "admin";
     public const string Accounting = "accounting";
     public const string Delivery = "delivery";
+    /// <summary>Distributor field + office: retailers, orders, collections.</summary>
+    public const string Trade = "trade";
+    /// <summary>Distributor office: invoicing, rates, schemes, credit notes, cancellations.</summary>
+    public const string TradeAdmin = "tradeAdmin";
+    /// <summary>Field force: MRs, area managers and the owner.</summary>
+    public const string Sfa = "sfa";
+    /// <summary>Field force supervision: approvals, sample issue, team reports.</summary>
+    public const string SfaManage = "sfaManage";
+    /// <summary>Hospital: pharmacy staff and ward staff.</summary>
+    public const string Hospital = "hospital";
+    /// <summary>Hospital pharmacy store: issues, checks, formulary, reports.</summary>
+    public const string HospitalPharmacy = "hospitalPharmacy";
+    public const string Mfg = "mfg", MfgProduction = "mfgProduction", MfgQc = "mfgQc", MfgQa = "mfgQa";
     /// <summary>Any tenant (pharmacy) token — never satisfied by provider tokens.</summary>
     public const string Tenant = "tenant";
     /// <summary>SaaS provider staff only — never satisfied by tenant tokens.</summary>
@@ -38,6 +51,16 @@ public static class Policies
     {
         [Accounting] = [UserRole.Owner, UserRole.Accountant],
         [Delivery] = [UserRole.Owner, UserRole.Pharmacist, UserRole.DeliveryAgent],
+        [Trade] = [UserRole.Owner, UserRole.Pharmacist, UserRole.Salesman, UserRole.Accountant],
+        [TradeAdmin] = [UserRole.Owner, UserRole.Pharmacist],
+        [Sfa] = [UserRole.Owner, UserRole.AreaManager, UserRole.MedicalRep],
+        [SfaManage] = [UserRole.Owner, UserRole.AreaManager],
+        [Hospital] = [UserRole.Owner, UserRole.Pharmacist, UserRole.WardStaff],
+        [HospitalPharmacy] = [UserRole.Owner, UserRole.Pharmacist],
+        [Mfg] = [UserRole.Owner, UserRole.Production, UserRole.QcAnalyst, UserRole.QaManager],
+        [MfgProduction] = [UserRole.Owner, UserRole.Production],
+        [MfgQc] = [UserRole.Owner, UserRole.QcAnalyst],
+        [MfgQa] = [UserRole.Owner, UserRole.QaManager],
         [Sell] = [UserRole.Owner, UserRole.Pharmacist, UserRole.Cashier],
         [SalesAdmin] = [UserRole.Owner, UserRole.Pharmacist],
         [Purchase] = [UserRole.Owner, UserRole.Pharmacist, UserRole.PurchaseClerk],

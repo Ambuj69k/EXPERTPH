@@ -39,6 +39,14 @@ public static class BusinessCalendar
         return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utc, tz).DateTime);
     }
 
+    /// <summary>The UTC instant at which a local business day starts (midnight IST by default).</summary>
+    public static DateTimeOffset StartOfDayUtc(DateOnly date, string timeZoneId = DefaultTimeZone)
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        var local = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        return new DateTimeOffset(local, tz.GetUtcOffset(local)).ToUniversalTime();
+    }
+
     /// <summary>e.g. 2026-11-16 → "2627" (FY 2026-27).</summary>
     public static string FinancialYearCode(DateOnly date)
     {

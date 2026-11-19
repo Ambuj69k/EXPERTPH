@@ -30,6 +30,11 @@ import AccountPage from './pages/AccountPage';
 import PricesPage from './pages/PricesPage';
 import { ShopPage, TrackPage } from './pages/ShopPages';
 import OnlineOrdersPage, { DeliveriesPage } from './pages/OnlineOrdersPage';
+import { RetailersPage, TradeCollectionsPage, TradeInvoicesPage, TradeOrdersPage, TradeRatesPage, TradeReportsPage } from './pages/DistributorPages';
+import { CoveragePage, DoctorsPage, FieldReportsPage, MyDayPage, SamplesPage, TerritoriesPage, TourPlanPage } from './pages/FieldForcePages';
+import { ConsumptionPage, DepartmentsPage, FormularyPage, WardIndentsPage, WardIssuesPage } from './pages/HospitalPages';
+import { GenealogyPage, ProductionPage, QcLabPage, RecipesSpecsPage } from './pages/ManufacturingPages';
+import { ControlledDrugsPage, DeviationsPage, DispatchPage, ExpensesPage, ScorecardPage } from './pages/OperationsPages';
 
 interface NavItem { to: string; label: string; roles: Role[]; key?: string; group: string; module?: string }
 const NAV: NavItem[] = [
@@ -58,13 +63,40 @@ const NAV: NavItem[] = [
   { to: '/reports/retention', label: 'Customer Retention', roles: RoleSets.reports, group: 'Reports' },
   { to: '/reports/daily', label: 'Daily Sales', roles: RoleSets.reports, group: 'Reports' },
   { to: '/reports/expiry', label: 'Near Expiry', roles: RoleSets.reports, group: 'Reports' },
+  { to: '/reports/controlled-drugs', label: 'Narcotic Register', roles: RoleSets.reports, group: 'Reports' },
   { to: '/reports/recovery', label: 'Return Recovery', roles: RoleSets.reports, group: 'Reports' },
+  { to: '/trade/orders', label: 'Sales Orders', roles: RoleSets.trade, group: 'Distribution', module: 'distributor' },
+  { to: '/trade/invoices', label: 'Trade Invoices', roles: RoleSets.trade, group: 'Distribution', module: 'distributor' },
+  { to: '/trade/collections', label: 'Collections', roles: RoleSets.trade, group: 'Distribution', module: 'distributor' },
+  { to: '/trade/dispatch', label: 'Dispatch', roles: RoleSets.trade, group: 'Distribution', module: 'distributor' },
+  { to: '/trade/retailers', label: 'Retailers', roles: RoleSets.trade, group: 'Distribution', module: 'distributor' },
+  { to: '/trade/rates', label: 'Trade Rates & Schemes', roles: RoleSets.trade, group: 'Distribution', module: 'distributor' },
+  { to: '/trade/reports', label: 'Trade Reports', roles: RoleSets.trade, group: 'Distribution', module: 'distributor' },
+  { to: '/field/day', label: 'My Day', roles: ['MedicalRep'], group: 'Field Force', module: 'sfa' },
+  { to: '/field/reports', label: 'Daily Reports', roles: RoleSets.sfaManage, group: 'Field Force', module: 'sfa' },
+  { to: '/field/tour-plan', label: 'Tour Plan', roles: RoleSets.sfa, group: 'Field Force', module: 'sfa' },
+  { to: '/field/expenses', label: 'Expenses', roles: RoleSets.sfa, group: 'Field Force', module: 'sfa' },
+  { to: '/field/scorecard', label: 'Targets', roles: RoleSets.sfa, group: 'Field Force', module: 'sfa' },
+  { to: '/field/doctors', label: 'Doctors', roles: RoleSets.sfa, group: 'Field Force', module: 'sfa' },
+  { to: '/field/samples', label: 'Samples', roles: RoleSets.sfa, group: 'Field Force', module: 'sfa' },
+  { to: '/field/coverage', label: 'Coverage', roles: RoleSets.sfa, group: 'Field Force', module: 'sfa' },
+  { to: '/field/territories', label: 'Territories', roles: RoleSets.admin, group: 'Field Force', module: 'sfa' },
+  { to: '/hospital/indents', label: 'Ward Indents', roles: RoleSets.hospital, group: 'Hospital', module: 'hospital' },
+  { to: '/hospital/issues', label: 'Ward Issues', roles: RoleSets.hospital, group: 'Hospital', module: 'hospital' },
+  { to: '/hospital/formulary', label: 'Formulary', roles: RoleSets.salesAdmin, group: 'Hospital', module: 'hospital' },
+  { to: '/hospital/departments', label: 'Departments', roles: RoleSets.salesAdmin, group: 'Hospital', module: 'hospital' },
+  { to: '/hospital/consumption', label: 'Dept Consumption', roles: RoleSets.salesAdmin, group: 'Hospital', module: 'hospital' },
+  { to: '/mfg/batches', label: 'Production', roles: RoleSets.mfg, group: 'Manufacturing', module: 'manufacturing' },
+  { to: '/mfg/qc', label: 'QC Lab', roles: RoleSets.mfg, group: 'Manufacturing', module: 'manufacturing' },
+  { to: '/mfg/recipes', label: 'Recipes & Specs', roles: RoleSets.mfg, group: 'Manufacturing', module: 'manufacturing' },
+  { to: '/mfg/deviations', label: 'Deviations & CAPA', roles: RoleSets.mfg, group: 'Manufacturing', module: 'manufacturing' },
+  { to: '/mfg/genealogy', label: 'Genealogy', roles: RoleSets.mfg, group: 'Manufacturing', module: 'manufacturing' },
   { to: '/users', label: 'Users', roles: RoleSets.admin, group: 'Settings' },
   { to: '/branches', label: 'Branches', roles: RoleSets.admin, group: 'Settings' },
   { to: '/reports/branches', label: 'Branch Comparison', roles: RoleSets.accounting, group: 'Reports', module: 'multistore' },
   { to: '/settings', label: 'Settings & Plan', roles: RoleSets.admin, group: 'Settings' },
-  { to: '/account', label: 'My Account', roles: ['Owner', 'Pharmacist', 'Cashier', 'PurchaseClerk', 'Accountant', 'DeliveryAgent'], group: 'Settings' },
-  { to: '/support', label: 'Help & Support', roles: ['Owner', 'Pharmacist', 'Cashier', 'PurchaseClerk', 'Accountant', 'DeliveryAgent'], group: 'Settings' },
+  { to: '/account', label: 'My Account', roles: ['Owner', 'Pharmacist', 'Cashier', 'PurchaseClerk', 'Accountant', 'DeliveryAgent', 'Salesman', 'MedicalRep', 'AreaManager', 'WardStaff', 'Production', 'QcAnalyst', 'QaManager'], group: 'Settings' },
+  { to: '/support', label: 'Help & Support', roles: ['Owner', 'Pharmacist', 'Cashier', 'PurchaseClerk', 'Accountant', 'DeliveryAgent', 'Salesman', 'MedicalRep', 'AreaManager', 'WardStaff', 'Production', 'QcAnalyst', 'QaManager'], group: 'Settings' },
 ];
 
 function Shell({ children }: { children: ReactNode }) {
@@ -140,7 +172,7 @@ export default function App() {
       </Routes>
     );
   }
-  const home = session.role === 'PurchaseClerk' ? '/purchases' : session.role === 'Accountant' ? '/accounting' : session.role === 'DeliveryAgent' ? '/deliveries' : '/pos';
+  const home = session.role === 'PurchaseClerk' ? '/purchases' : session.role === 'Accountant' ? '/accounting' : session.role === 'DeliveryAgent' ? '/deliveries' : session.role === 'Salesman' ? '/trade/orders' : session.role === 'MedicalRep' ? '/field/day' : session.role === 'AreaManager' ? '/field/reports' : session.role === 'WardStaff' ? '/hospital/indents' : session.role === 'QcAnalyst' ? '/mfg/qc' : session.role === 'Production' || session.role === 'QaManager' ? '/mfg/batches' : '/pos';
   return (
     <Shell>
       <Routes>
@@ -177,6 +209,33 @@ export default function App() {
         <Route path="/reorder" element={<Guard roles={RoleSets.purchase}><ReorderPage /></Guard>} />
         <Route path="/purchase-orders" element={<Guard roles={RoleSets.purchase}><PurchaseOrdersPage /></Guard>} />
         <Route path="/reports/retention" element={<Guard roles={RoleSets.reports}><RetentionPage /></Guard>} />
+        <Route path="/trade/orders" element={<Guard roles={RoleSets.trade}><TradeOrdersPage /></Guard>} />
+        <Route path="/trade/invoices" element={<Guard roles={RoleSets.trade}><TradeInvoicesPage /></Guard>} />
+        <Route path="/trade/collections" element={<Guard roles={RoleSets.trade}><TradeCollectionsPage /></Guard>} />
+        <Route path="/trade/retailers" element={<Guard roles={RoleSets.trade}><RetailersPage /></Guard>} />
+        <Route path="/trade/rates" element={<Guard roles={RoleSets.trade}><TradeRatesPage /></Guard>} />
+        <Route path="/trade/reports" element={<Guard roles={RoleSets.trade}><TradeReportsPage /></Guard>} />
+        <Route path="/field/day" element={<Guard roles={['MedicalRep']}><MyDayPage /></Guard>} />
+        <Route path="/field/reports" element={<Guard roles={RoleSets.sfaManage}><FieldReportsPage /></Guard>} />
+        <Route path="/field/tour-plan" element={<Guard roles={RoleSets.sfa}><TourPlanPage /></Guard>} />
+        <Route path="/field/doctors" element={<Guard roles={RoleSets.sfa}><DoctorsPage /></Guard>} />
+        <Route path="/field/samples" element={<Guard roles={RoleSets.sfa}><SamplesPage /></Guard>} />
+        <Route path="/field/coverage" element={<Guard roles={RoleSets.sfa}><CoveragePage /></Guard>} />
+        <Route path="/field/territories" element={<Guard roles={RoleSets.admin}><TerritoriesPage /></Guard>} />
+        <Route path="/hospital/indents" element={<Guard roles={RoleSets.hospital}><WardIndentsPage /></Guard>} />
+        <Route path="/hospital/issues" element={<Guard roles={RoleSets.hospital}><WardIssuesPage /></Guard>} />
+        <Route path="/hospital/formulary" element={<Guard roles={RoleSets.salesAdmin}><FormularyPage /></Guard>} />
+        <Route path="/hospital/departments" element={<Guard roles={RoleSets.salesAdmin}><DepartmentsPage /></Guard>} />
+        <Route path="/hospital/consumption" element={<Guard roles={RoleSets.salesAdmin}><ConsumptionPage /></Guard>} />
+        <Route path="/mfg/batches" element={<Guard roles={RoleSets.mfg}><ProductionPage /></Guard>} />
+        <Route path="/mfg/qc" element={<Guard roles={RoleSets.mfg}><QcLabPage /></Guard>} />
+        <Route path="/mfg/recipes" element={<Guard roles={RoleSets.mfg}><RecipesSpecsPage /></Guard>} />
+        <Route path="/mfg/genealogy" element={<Guard roles={RoleSets.mfg}><GenealogyPage /></Guard>} />
+        <Route path="/trade/dispatch" element={<Guard roles={RoleSets.trade}><DispatchPage /></Guard>} />
+        <Route path="/field/expenses" element={<Guard roles={RoleSets.sfa}><ExpensesPage /></Guard>} />
+        <Route path="/field/scorecard" element={<Guard roles={RoleSets.sfa}><ScorecardPage /></Guard>} />
+        <Route path="/mfg/deviations" element={<Guard roles={RoleSets.mfg}><DeviationsPage /></Guard>} />
+        <Route path="/reports/controlled-drugs" element={<Guard roles={RoleSets.reports}><ControlledDrugsPage /></Guard>} />
         <Route path="*" element={<Navigate to={home} replace />} />
       </Routes>
     </Shell>
